@@ -5,9 +5,11 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"html/template"
 	"net/http"
 	"os"
 	"os/signal"
+	"rectifier/internal/registry"
 	"syscall"
 	"time"
 )
@@ -15,9 +17,25 @@ import (
 //go:embed templates/index.html
 var indexHTML string
 
-func Run() {
+var indexTemplate = template.Must(
+	template.New("index").Parse(indexHTML),
+)
+
+type sensorView struct {
+	ID          string
+	Name        string
+	Temperature float64
+}
+
+type indexView struct {
+	Sensors []sensorView
+}
+
+func Run(sensorRegistry registry.SensorRegistry) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /", handleIndex)
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		handleIndex(w, r, sensorRegistry)
+	})
 
 	server := &http.Server{
 		Addr:    ":8080",
@@ -67,8 +85,42 @@ func Run() {
 	fmt.Println("Server stopped")
 }
 
-func handleIndex(w http.ResponseWriter, r *http.Request) {
+func handleIndex(w http.ResponseWriter, r *http.Request, sensorRegistry registry.SensorRegistry) {
+	sensors, err := sensorRegistry.Discover(r.Context())
+	if err != nil {
+		http.Error(
+			w,
+			"failed to discover sensors",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	data := indexView{
+		Sensors: make([]sensorView, 0, len(sensors)),
+	}
+
+	for _, discoveredSensor := range sensors {
+		temperature, err := sensorRegistry.ReadTemperature(
+			r.Context(),
+			discoveredSensor.ID(),
+		)
+
+		if err != nil {
+			fmt.Printf("Error reading temperature for sensor %s: %v\n", discoveredSensor.ID(), err)
+			continue
+		}
+
+		data.Sensors = append(data.Sensors, sensorView{
+			ID:          discoveredSensor.ID(),
+			Name:        discoveredSensor.Name(),
+			Temperature: temperature,
+		})
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-	fmt.Fprintf(w, indexHTML)
+	if err := indexTemplate.Execute(w, data); err != nil {
+		fmt.Printf("Error rendering index: %v\n", err)
+	}
 }

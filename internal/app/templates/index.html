@@ -61,79 +61,34 @@
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h2 class="h4 mb-0">Датчики</h2>
 
-        <span class="text-secondary"> 3 подключено </span>
+        <span class="text-secondary"> {{len .Sensors}} подключено </span>
       </div>
 
       <!-- Sensors -->
       <div class="row g-3">
-        <!-- Sensor: Cube -->
+        {{range .Sensors}}
         <div class="col-12 col-md-6 col-lg-4">
           <div class="card h-100 shadow-sm">
             <div class="card-body">
               <div class="d-flex justify-content-between align-items-start">
                 <div>
-                  <h5 class="card-title mb-1">Куб</h5>
+                  <h5 class="card-title mb-1">{{.Name}}</h5>
 
-                  <div class="text-secondary small">28-00000abc1234</div>
+                  <div class="text-secondary small">{{.ID}}</div>
                 </div>
-
-                <span class="badge text-bg-success"> ONLINE </span>
               </div>
 
               <div class="mt-4">
-                <span class="display-5 fw-semibold"> 92.4 </span>
+                <span class="display-5 fw-semibold">
+                  {{printf "%.1f" .Temperature}}
+                </span>
 
                 <span class="fs-4 text-secondary"> °C </span>
               </div>
             </div>
           </div>
         </div>
-
-        <!-- Sensor: Column top -->
-        <div class="col-12 col-md-6 col-lg-4">
-          <div class="card h-100 shadow-sm">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-start">
-                <div>
-                  <h5 class="card-title mb-1">Царга верх</h5>
-
-                  <div class="text-secondary small">28-00000def5678</div>
-                </div>
-
-                <span class="badge text-bg-success"> ONLINE </span>
-              </div>
-
-              <div class="mt-4">
-                <span class="display-5 fw-semibold"> 78.3 </span>
-
-                <span class="fs-4 text-secondary"> °C </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Sensor: Cooling water -->
-        <div class="col-12 col-md-6 col-lg-4">
-          <div class="card h-100 shadow-sm">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-start">
-                <div>
-                  <h5 class="card-title mb-1">Вода выход</h5>
-
-                  <div class="text-secondary small">28-00000aaa9999</div>
-                </div>
-
-                <span class="badge text-bg-success"> ONLINE </span>
-              </div>
-
-              <div class="mt-4">
-                <span class="display-5 fw-semibold"> 27.1 </span>
-
-                <span class="fs-4 text-secondary"> °C </span>
-              </div>
-            </div>
-          </div>
-        </div>
+        {{end}}
       </div>
     </div>
 
