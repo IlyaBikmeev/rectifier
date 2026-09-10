@@ -12,6 +12,8 @@ import (
 	"rectifier/internal/registry"
 	"syscall"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 //go:embed templates/index.html
@@ -32,10 +34,16 @@ type indexView struct {
 }
 
 func Run(sensorRegistry registry.SensorRegistry) {
+	if err := registerSensorMetrics(sensorRegistry); err != nil {
+		fmt.Printf("Register sensor metrics: %v\n", err)
+		return
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		handleIndex(w, r, sensorRegistry)
 	})
+	mux.Handle("GET /metrics", promhttp.Handler())
 
 	server := &http.Server{
 		Addr:    ":8080",
