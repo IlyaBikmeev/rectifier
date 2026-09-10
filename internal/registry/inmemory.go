@@ -16,7 +16,7 @@ func New(sensors ...sensor.TemperatureSensor) *InMemoryRegistry {
 	}
 }
 
-func (r *InMemoryRegistry) Discover(ctx context.Context) ([]sensor.TemperatureSensor, error) {
+func (r *InMemoryRegistry) Sensors() ([]sensor.TemperatureSensor, error) {
 	return r.sensors, nil
 }
 

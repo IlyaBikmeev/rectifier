@@ -86,11 +86,11 @@ func Run(sensorRegistry registry.SensorRegistry) {
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request, sensorRegistry registry.SensorRegistry) {
-	sensors, err := sensorRegistry.Discover(r.Context())
+	sensors, err := sensorRegistry.Sensors()
 	if err != nil {
 		http.Error(
 			w,
-			"failed to discover sensors",
+			"failed to get sensors",
 			http.StatusInternalServerError,
 		)
 		return
