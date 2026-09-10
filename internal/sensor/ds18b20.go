@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -74,6 +75,22 @@ func (ds *DS18B20) ReadTemperature(ctx context.Context) (float64, error) {
 }
 
 func DiscoverDS18B20Sensors(devicesPath string) ([]TemperatureSensor, error) {
-	//TODO реализовать обнаружение датчиков DS18B20
-	return nil, nil
+	files, err := os.ReadDir(devicesPath)
+	if err != nil {
+		return nil, fmt.Errorf("read devices directory: %w", err)
+	}
+
+	sensors := make([]TemperatureSensor, 0, len(files))
+
+	for _, file := range files {
+		if strings.HasPrefix(file.Name(), "28-") {
+			path := filepath.Join(devicesPath, file.Name(), "w1_slave")
+
+			sensors = append(sensors, NewDS18B20(
+				file.Name(),
+				path,
+			))
+		}
+	}
+	return sensors, nil
 }
