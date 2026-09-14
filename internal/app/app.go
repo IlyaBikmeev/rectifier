@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"rectifier/internal/registry"
+	"sort"
 	"syscall"
 	"time"
 
@@ -114,6 +115,10 @@ func handleIndex(w http.ResponseWriter, r *http.Request, appState *AppState) {
 			Temperature: discoveredSensor.temperature,
 		})
 	}
+
+    sort.Slice(data.Sensors, func(i, j int) bool {
+        return data.Sensors[i].Name < data.Sensors[j].Name
+    })
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
