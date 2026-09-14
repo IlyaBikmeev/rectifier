@@ -39,7 +39,7 @@ func Run(sensorRegistry registry.SensorRegistry) {
 	appCtx, cancelApp := context.WithCancel(context.Background())
 	defer cancelApp()
 
-	if err := registerSensorMetrics(sensorRegistry); err != nil {
+	if err := registerSensorMetrics(appState, sensorRegistry); err != nil {
 		fmt.Printf("Register sensor metrics: %v\n", err)
 		return
 	}
@@ -116,9 +116,9 @@ func handleIndex(w http.ResponseWriter, r *http.Request, appState *AppState) {
 		})
 	}
 
-    sort.Slice(data.Sensors, func(i, j int) bool {
-        return data.Sensors[i].Name < data.Sensors[j].Name
-    })
+	sort.Slice(data.Sensors, func(i, j int) bool {
+		return data.Sensors[i].Name < data.Sensors[j].Name
+	})
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
