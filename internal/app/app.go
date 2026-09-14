@@ -34,14 +34,21 @@ type indexView struct {
 }
 
 func Run(sensorRegistry registry.SensorRegistry) {
+	appState := NewAppState()
+	appCtx, cancelApp := context.WithCancel(context.Background())
+	defer cancelApp()
+
 	if err := registerSensorMetrics(sensorRegistry); err != nil {
 		fmt.Printf("Register sensor metrics: %v\n", err)
 		return
 	}
 
+	//TODO handle pollingDone before exiting
+	go runSensorPolling(appCtx, appState, sensorRegistry)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		handleIndex(w, r, sensorRegistry)
+		handleIndex(w, r, appState)
 	})
 	mux.Handle("GET /metrics", promhttp.Handler())
 
@@ -93,36 +100,18 @@ func Run(sensorRegistry registry.SensorRegistry) {
 	fmt.Println("Server stopped")
 }
 
-func handleIndex(w http.ResponseWriter, r *http.Request, sensorRegistry registry.SensorRegistry) {
-	sensors, err := sensorRegistry.Sensors()
-	if err != nil {
-		http.Error(
-			w,
-			"failed to get sensors",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+func handleIndex(w http.ResponseWriter, r *http.Request, appState *AppState) {
+	sensors := appState.SensorsSnapshot()
 
 	data := indexView{
 		Sensors: make([]sensorView, 0, len(sensors)),
 	}
 
-	for _, discoveredSensor := range sensors {
-		temperature, err := sensorRegistry.ReadTemperature(
-			r.Context(),
-			discoveredSensor.ID(),
-		)
-
-		if err != nil {
-			fmt.Printf("Error reading temperature for sensor %s: %v\n", discoveredSensor.ID(), err)
-			continue
-		}
-
+	for sensorID, discoveredSensor := range sensors {
 		data.Sensors = append(data.Sensors, sensorView{
-			ID:          discoveredSensor.ID(),
-			Name:        discoveredSensor.Name(),
-			Temperature: temperature,
+			ID:          sensorID,
+			Name:        discoveredSensor.name,
+			Temperature: discoveredSensor.temperature,
 		})
 	}
 
