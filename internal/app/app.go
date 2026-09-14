@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -30,6 +31,14 @@ type sensorView struct {
 	Temperature float64
 }
 
+type sensorStatusResponse struct {
+	ID                 string    `json:"id"`
+	Name               string    `json:"name"`
+	Temperature        float64   `json:"temperature"`
+	LastSuccessfulRead time.Time `json:"last_successful_read"`
+	Status             string    `json:"status"`
+}
+
 type indexView struct {
 	Sensors []sensorView
 }
@@ -50,6 +59,9 @@ func Run(sensorRegistry registry.SensorRegistry) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		handleIndex(w, r, appState)
+	})
+	mux.HandleFunc("GET /api/status", func(w http.ResponseWriter, r *http.Request) {
+		handleStatus(w, r, appState)
 	})
 	mux.Handle("GET /metrics", promhttp.Handler())
 
@@ -124,5 +136,31 @@ func handleIndex(w http.ResponseWriter, r *http.Request, appState *AppState) {
 
 	if err := indexTemplate.Execute(w, data); err != nil {
 		fmt.Printf("Error rendering index: %v\n", err)
+	}
+}
+
+func handleStatus(w http.ResponseWriter, r *http.Request, appState *AppState) {
+	sensors := appState.SensorsSnapshot()
+
+	response := make([]sensorStatusResponse, 0, len(sensors))
+
+	for sensorID, discoveredSensor := range sensors {
+		response = append(response, sensorStatusResponse{
+			ID:                 sensorID,
+			Name:               discoveredSensor.name,
+			Temperature:        discoveredSensor.temperature,
+			LastSuccessfulRead: discoveredSensor.lastSuccessfulRead,
+			Status:             discoveredSensor.status,
+		})
+	}
+
+	sort.Slice(response, func(i, j int) bool {
+		return response[i].Name < response[j].Name
+	})
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
