@@ -1,11 +1,17 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"flag"
 	"log"
 	"rectifier/internal/app"
 	"rectifier/internal/registry"
 	"rectifier/internal/sensor"
+	"rectifier/internal/storage"
+	"time"
+
+	_ "modernc.org/sqlite"
 )
 
 func main() {
@@ -13,6 +19,12 @@ func main() {
 		"sensor-mode",
 		"fake",
 		"sensor mode: fake or ds18b20",
+	)
+
+	dbPath := flag.String(
+		"db-path",
+		"./rectifier.db",
+		"DB path",
 	)
 
 	flag.Parse()
@@ -39,6 +51,28 @@ func main() {
 	}
 
 	sensorRegistry := registry.New(sensors...)
+
+	startupCtx, cancelStartup := context.WithTimeout(
+		context.Background(), 10*time.Second,
+	)
+	defer cancelStartup()
+
+	db, err := sql.Open("sqlite", *dbPath)
+	if err != nil {
+		log.Fatalf("open SQLite database %q: %v", *dbPath, err)
+	}
+	defer db.Close()
+
+	if err := db.PingContext(startupCtx); err != nil {
+		log.Fatalf("connect to SQLite database %q: %v", *dbPath, err)
+	}
+
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+
+	if err := storage.Migrate(startupCtx, db); err != nil {
+		log.Fatalf("migrate database: %v", err)
+	}
 
 	app.Run(sensorRegistry)
 }
