@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"flag"
+	"fmt"
 	"log"
 	"rectifier/internal/app"
 	"rectifier/internal/registry"
@@ -57,18 +58,21 @@ func main() {
 	)
 	defer cancelStartup()
 
-	db, err := sql.Open("sqlite", *dbPath)
+	dsn := fmt.Sprintf(
+		"file:%s?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000",
+		*dbPath,
+	)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		log.Fatalf("open SQLite database %q: %v", *dbPath, err)
 	}
 	defer db.Close()
 
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	if err := db.PingContext(startupCtx); err != nil {
 		log.Fatalf("connect to SQLite database %q: %v", *dbPath, err)
 	}
-
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
 
 	if err := storage.Migrate(startupCtx, db); err != nil {
 		log.Fatalf("migrate database: %v", err)

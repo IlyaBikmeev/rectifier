@@ -19,7 +19,7 @@ type migration struct {
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
 
-//TODO сделать отдельную таблицу для миграций и запоминать примененные миграции
+// TODO сделать отдельную таблицу для миграций и запоминать примененные миграции
 func Migrate(ctx context.Context, db *sql.DB) error {
 	var currentVersion int
 
@@ -85,6 +85,8 @@ func applyMigration(ctx context.Context, db *sql.DB, m migration) error {
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit migration %d: %w", m.version, err)
 	}
+
+	fmt.Printf("migration %q applied\n", m.entry.Name())
 	return nil
 }
 
