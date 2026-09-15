@@ -57,7 +57,24 @@ DS18B20
 
 ## 2. SQLite
 
-SQLite становится локальным source of truth для истории.
+SQLite должна стать локальным source of truth для истории.
+
+### Текущее состояние
+
+- [x] Подключить SQLite-драйвер.
+- [x] Открывать базу при запуске приложения и проверять соединение.
+- [x] Добавить встроенные в бинарник SQL-миграции через `embed.FS`.
+- [x] Выполнять новые миграции последовательно и транзакционно.
+- [x] Хранить текущую версию схемы в `PRAGMA user_version`.
+- [x] Создать начальную схему данных.
+- [x] Включить WAL mode, `foreign_keys` и `busy_timeout` через DSN.
+- [x] Добавить индекс для чтения истории измерений.
+- [ ] Добавить репозитории и операции чтения/записи.
+- [ ] Сохранять обнаруженные датчики.
+- [ ] Сохранять Batch, Run и измерения.
+- [ ] Добавить буферизованную запись измерений.
+- [ ] Сбрасывать буфер при Stop и graceful shutdown.
+- [ ] В будущем хранить и проверять checksum применённых миграций.
 
 ### Сущности
 
@@ -75,6 +92,7 @@ Batch
 - id
 - name
 - created_at
+- updated_at
 - comment
 
 #### runs
@@ -96,10 +114,11 @@ Batch
 - id
 - hardware_id
 - name
+- measurement_type
+- unit
 - enabled
-- calibration_offset
-- first_seen_at
-- last_seen_at
+- created_at
+- updated_at
 
 #### run_sensors
 
@@ -117,14 +136,22 @@ Batch
 - run_id
 - sensor_id
 - measured_at
-- temperature
+- value
+
+Тип измерения и единица хранятся у датчика. Например:
+
+```text
+measurement_type = temperature
+unit = celsius
+```
 
 ### Настройки SQLite
 
-- WAL mode.
-- `foreign_keys = ON`.
-- `busy_timeout`.
-- Индексы под историю перегонов.
+- [x] WAL mode.
+- [x] `foreign_keys = ON`.
+- [x] `busy_timeout = 5000` миллисекунд.
+- [x] Ограничить пул одним соединением.
+- [x] Индекс под историю перегонов.
 
 Пример:
 
