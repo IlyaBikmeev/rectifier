@@ -19,6 +19,7 @@ type ProcessState struct {
 
 type SensorState struct {
 	name               string
+	enabled            bool
 	temperature        float64
 	lastSuccessfulRead time.Time
 	status             string // "OK", "ERROR"
@@ -55,4 +56,21 @@ func (appState *AppState) SensorSnapshot(id string) (SensorState, bool) {
 	}
 
 	return SensorState{}, false
+}
+
+func (appState *AppState) UpdateSensorMetadata(hardwareID string, name string, enabled bool) {
+	appState.mutex.Lock()
+	defer appState.mutex.Unlock()
+
+	sensor, found := appState.sensors[hardwareID]
+	if found {
+		sensor.name = name
+		sensor.enabled = enabled
+		appState.sensors[hardwareID] = sensor
+	} else {
+		appState.sensors[hardwareID] = SensorState{
+			name:    name,
+			enabled: enabled,
+		}
+	}
 }

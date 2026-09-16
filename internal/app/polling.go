@@ -47,7 +47,6 @@ func pollSensors(ctx context.Context, appState *AppState, sensorRegistry registr
 			appState.mutex.Lock()
 
 			sensorState := appState.sensors[discoveredSensor.ID()]
-			sensorState.name = discoveredSensor.Name()
 			sensorState.status = "ERROR"
 			appState.sensors[discoveredSensor.ID()] = sensorState
 
@@ -59,7 +58,6 @@ func pollSensors(ctx context.Context, appState *AppState, sensorRegistry registr
 		appState.mutex.Lock()
 
 		sensorState := appState.sensors[discoveredSensor.ID()]
-		sensorState.name = discoveredSensor.Name()
 		sensorState.lastSuccessfulRead = time.Now()
 		sensorState.status = "OK"
 		sensorState.temperature = temperature

@@ -56,6 +56,7 @@ func Run(sensorRegistry registry.SensorRegistry, sensorRepository storage.Sensor
 
 	if err := syncDiscoveredSensors(
 		appCtx,
+		appState,
 		sensorRegistry,
 		sensorRepository,
 	); err != nil {
@@ -125,6 +126,7 @@ func Run(sensorRegistry registry.SensorRegistry, sensorRepository storage.Sensor
 
 func syncDiscoveredSensors(
 	ctx context.Context,
+	appState *AppState,
 	sensorRegistry registry.SensorRegistry,
 	sensorRepository storage.SensorRepository,
 ) error {
@@ -145,15 +147,17 @@ func syncDiscoveredSensors(
 		return fmt.Errorf("find sensors by hardware ids: %w", err)
 	}
 
-	sensorsMap := make(map[string]struct{})
+	sensorsMap := make(map[string]storage.Sensor)
 	for _, sensorInDB := range sensorsInDB {
-		sensorsMap[sensorInDB.HardwareID] = struct{}{}
+		sensorsMap[sensorInDB.HardwareID] = sensorInDB
 	}
 
 	for _, discoveredSensor := range sensors {
-		if _, found := sensorsMap[discoveredSensor.ID()]; !found {
+		persistedSensor, found := sensorsMap[discoveredSensor.ID()]
+
+		if !found {
 			fmt.Printf("sensor %q not found, saving in database ...\n", discoveredSensor.ID())
-			_, err := sensorRepository.Save(ctx, storage.Sensor{
+			persistedSensor, err = sensorRepository.Save(ctx, storage.Sensor{
 				HardwareID:      discoveredSensor.ID(),
 				Name:            discoveredSensor.ID(),
 				MeasurementType: "temperature",
@@ -165,6 +169,8 @@ func syncDiscoveredSensors(
 				return fmt.Errorf("saving sensor %q in database: %w", discoveredSensor.ID(), err)
 			}
 		}
+
+		appState.UpdateSensorMetadata(persistedSensor.HardwareID, persistedSensor.Name, persistedSensor.Enabled)
 	}
 
 	return nil
