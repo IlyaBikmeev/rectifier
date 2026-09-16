@@ -78,5 +78,7 @@ func main() {
 		log.Fatalf("migrate database: %v", err)
 	}
 
-	app.Run(sensorRegistry)
+	sensorRepository := storage.NewSQLiteSensorRepository(db)
+
+	app.Run(sensorRegistry, sensorRepository)
 }

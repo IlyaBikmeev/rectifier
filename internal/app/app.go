@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"rectifier/internal/registry"
+	"rectifier/internal/storage"
 	"sort"
 	"syscall"
 	"time"
@@ -43,13 +44,22 @@ type indexView struct {
 	Sensors []sensorView
 }
 
-func Run(sensorRegistry registry.SensorRegistry) {
+func Run(sensorRegistry registry.SensorRegistry, sensorRepository storage.SensorRepository) {
 	appState := NewAppState()
 	appCtx, cancelApp := context.WithCancel(context.Background())
 	defer cancelApp()
 
 	if err := registerSensorMetrics(appState, sensorRegistry); err != nil {
 		fmt.Printf("Register sensor metrics: %v\n", err)
+		return
+	}
+
+	if err := syncDiscoveredSensors(
+		appCtx,
+		sensorRegistry,
+		sensorRepository,
+	); err != nil {
+		fmt.Printf("Sync discovered sensors: %v\n", err)
 		return
 	}
 
@@ -111,6 +121,53 @@ func Run(sensorRegistry registry.SensorRegistry) {
 	}
 
 	fmt.Println("Server stopped")
+}
+
+func syncDiscoveredSensors(
+	ctx context.Context,
+	sensorRegistry registry.SensorRegistry,
+	sensorRepository storage.SensorRepository,
+) error {
+	sensors, err := sensorRegistry.Sensors()
+	if err != nil {
+		return fmt.Errorf("sync discovered sensors: %w", err)
+	}
+
+	hardwareIDs := make([]string, 0, len(sensors))
+	for _, sensor := range sensors {
+		hardwareIDs = append(hardwareIDs, sensor.ID())
+
+	}
+
+	sensorsInDB, err := sensorRepository.FindByHardwareIDs(ctx, hardwareIDs)
+
+	if err != nil {
+		return fmt.Errorf("find sensors by hardware ids: %w", err)
+	}
+
+	sensorsMap := make(map[string]struct{})
+	for _, sensorInDB := range sensorsInDB {
+		sensorsMap[sensorInDB.HardwareID] = struct{}{}
+	}
+
+	for _, discoveredSensor := range sensors {
+		if _, found := sensorsMap[discoveredSensor.ID()]; !found {
+			fmt.Printf("sensor %q not found, saving in database ...\n", discoveredSensor.ID())
+			_, err := sensorRepository.Save(ctx, storage.Sensor{
+				HardwareID:      discoveredSensor.ID(),
+				Name:            discoveredSensor.ID(),
+				MeasurementType: "temperature",
+				Unit:            "celsius",
+				Enabled:         true,
+			})
+
+			if err != nil {
+				return fmt.Errorf("saving sensor %q in database: %w", discoveredSensor.ID(), err)
+			}
+		}
+	}
+
+	return nil
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request, appState *AppState) {
