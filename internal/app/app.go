@@ -103,6 +103,12 @@ type activeRunBatchResponse struct {
 	Name string `json:"name"`
 }
 
+type createRunRequest struct {
+	BatchID           int      `json:"batch_id"`
+	Type              string   `json:"type"`
+	SensorHardwareIDs []string `json:"sensor_hardware_ids"`
+}
+
 func Run(
 	sensorRegistry registry.SensorRegistry,
 	sensorRepository storage.SensorRepository,
@@ -171,6 +177,10 @@ func Run(
 	mux.HandleFunc("POST /api/batches", func(w http.ResponseWriter, r *http.Request) {
 		handleCreateBatch(w, r, batchRepository)
 	})
+	mux.HandleFunc("POST /api/runs", func(w http.ResponseWriter, r *http.Request) {
+		handleCreateRun(w, r, appState, runRepository)
+	})
+
 	mux.Handle("GET /metrics", promhttp.Handler())
 
 	server := &http.Server{
@@ -544,5 +554,118 @@ func handleCreateBatch(w http.ResponseWriter, r *http.Request, batchRepository s
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func handleCreateRun(w http.ResponseWriter, r *http.Request, appState *AppState, runRepository storage.RunRepository) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+
+	var request createRunRequest
+
+	if err := decoder.Decode(&request); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if request.BatchID <= 0 {
+		http.Error(w, "batch_id is required", http.StatusBadRequest)
+		return
+	}
+
+	if request.Type != "stripping" &&
+		request.Type != "rectification" {
+		http.Error(w, "unsupported run type", http.StatusBadRequest)
+		return
+	}
+
+	if len(request.SensorHardwareIDs) == 0 {
+		http.Error(
+			w,
+			"at least one sensor is required",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	sensors := appState.SensorsSnapshot()
+
+	for _, hardwareID := range request.SensorHardwareIDs {
+		sensor, found := sensors[hardwareID]
+		if !found {
+			http.Error(
+				w,
+				fmt.Sprintf("sensor %q does not exist", hardwareID),
+				http.StatusBadRequest,
+			)
+			return
+		}
+
+		if !sensor.enabled {
+			http.Error(
+				w,
+				fmt.Sprintf("sensor %q is disabled", hardwareID),
+				http.StatusBadRequest,
+			)
+			return
+		}
+
+		if sensor.status != "OK" {
+			http.Error(
+				w,
+				fmt.Sprintf("sensor %q is unavailable", hardwareID),
+				http.StatusBadRequest,
+			)
+			return
+		}
+
+		if sensor.lastSuccessfulRead.IsZero() {
+			http.Error(
+				w,
+				fmt.Sprintf("sensor %q has no successful readings", hardwareID),
+				http.StatusBadRequest,
+			)
+			return
+		}
+	}
+
+	run, err := runRepository.Create(r.Context(), storage.Run{
+		BatchID:           request.BatchID,
+		Type:              request.Type,
+		SensorHardwareIDs: request.SensorHardwareIDs,
+	})
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	appState.RestoreActiveRun(ActiveRun{
+		id:                run.ID,
+		batchID:           run.BatchID,
+		batchName:         run.BatchName,
+		runType:           run.Type,
+		startedAt:         run.StartedAt,
+		sensorHardwareIDs: run.SensorHardwareIDs,
+	})
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusCreated)
+
+	response := activeRunResponse{
+		ID: run.ID,
+		Batch: activeRunBatchResponse{
+			ID:   run.BatchID,
+			Name: run.BatchName,
+		},
+		Type:        run.Type,
+		StartedAt:   run.StartedAt,
+		SensorCount: len(run.SensorHardwareIDs),
+	}
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		fmt.Printf("Encode create run response: %v\n", err)
 	}
 }
