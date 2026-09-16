@@ -590,6 +590,16 @@ func handleCreateRun(w http.ResponseWriter, r *http.Request, appState *AppState,
 		return
 	}
 
+	process := appState.ProcessSnapshot()
+	if process.status != ProcessStatusStopped {
+		http.Error(
+			w,
+			"run is already active",
+			http.StatusConflict,
+		)
+		return
+	}
+
 	sensors := appState.SensorsSnapshot()
 
 	for _, hardwareID := range request.SensorHardwareIDs {
