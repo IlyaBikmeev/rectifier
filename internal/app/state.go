@@ -138,3 +138,17 @@ func (appState *AppState) RestoreActiveRun(run ActiveRun) {
 		activeRun: &run,
 	}
 }
+
+func (appState *AppState) StopRun(id int) bool {
+	appState.mutex.Lock()
+	defer appState.mutex.Unlock()
+
+	if appState.process.status != ProcessStatusRunning ||
+		appState.process.activeRun == nil ||
+		appState.process.activeRun.id != id {
+		return false
+	}
+
+	appState.process = ProcessState{status: ProcessStatusStopped}
+	return true
+}

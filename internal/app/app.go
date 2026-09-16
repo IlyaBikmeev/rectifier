@@ -13,6 +13,7 @@ import (
 	"rectifier/internal/registry"
 	"rectifier/internal/storage"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -180,6 +181,9 @@ func Run(
 	})
 	mux.HandleFunc("POST /api/runs", func(w http.ResponseWriter, r *http.Request) {
 		handleCreateRun(w, r, appState, runRepository)
+	})
+	mux.HandleFunc("POST /api/runs/{id}/stop", func(w http.ResponseWriter, r *http.Request) {
+		handleStopRun(w, r, appState, runRepository)
 	})
 
 	mux.Handle("GET /metrics", promhttp.Handler())
@@ -679,4 +683,42 @@ func handleCreateRun(w http.ResponseWriter, r *http.Request, appState *AppState,
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		fmt.Printf("Encode create run response: %v\n", err)
 	}
+}
+
+func handleStopRun(
+	w http.ResponseWriter,
+	r *http.Request,
+	appState *AppState,
+	runRepository storage.RunRepository,
+) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid run id", http.StatusBadRequest)
+		return
+	}
+
+	process := appState.ProcessSnapshot()
+	if process.status != ProcessStatusRunning ||
+		process.activeRun == nil ||
+		process.activeRun.id != id {
+		http.Error(w, "run is not active", http.StatusConflict)
+		return
+	}
+
+	if err := runRepository.Stop(r.Context(), id); err != nil {
+		if errors.Is(err, storage.ErrRunNotActive) {
+			http.Error(w, "run is not active", http.StatusConflict)
+			return
+		}
+
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if !appState.StopRun(id) {
+		http.Error(w, "run state changed concurrently", http.StatusConflict)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

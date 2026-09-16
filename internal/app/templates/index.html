@@ -6,15 +6,11 @@
 
     <title>Rectifier</title>
 
-    <link
-      href="/static/bootstrap/css/bootstrap.min.css"
-      rel="stylesheet"
-    />
+    <link href="/static/bootstrap/css/bootstrap.min.css" rel="stylesheet" />
     <link
       href="/static/bootstrap-icons/bootstrap-icons.min.css"
       rel="stylesheet"
     />
-
   </head>
 
   <body class="bg-light">
@@ -47,10 +43,7 @@
           />
           Rectifier
         </a>
-        <span
-          class="badge text-bg-secondary d-lg-none"
-          data-process-badge
-        >
+        <span class="badge text-bg-secondary d-lg-none" data-process-badge>
           Запись остановлена
         </span>
         <div
@@ -60,10 +53,7 @@
           aria-labelledby="main-navigation-title"
         >
           <div class="offcanvas-header">
-            <h2
-              class="offcanvas-title h5 fw-bold"
-              id="main-navigation-title"
-            >
+            <h2 class="offcanvas-title h5 fw-bold" id="main-navigation-title">
               Rectifier
             </h2>
             <button
@@ -117,7 +107,9 @@
 
             <div id="process-stopped" class="row align-items-center g-4">
               <div class="col-12 col-lg">
-                <div class="text-secondary small fw-semibold text-uppercase mb-2">
+                <div
+                  class="text-secondary small fw-semibold text-uppercase mb-2"
+                >
                   Журнал измерений
                 </div>
                 <span class="badge text-bg-secondary mb-3">
@@ -143,15 +135,22 @@
 
             <div id="process-running" class="row align-items-center g-4 d-none">
               <div class="col-12 col-lg">
-                <div class="d-flex align-items-center gap-2 text-success fw-semibold mb-2">
+                <div
+                  class="d-flex align-items-center gap-2 text-success fw-semibold mb-2"
+                >
                   <i class="bi bi-record-circle-fill" aria-hidden="true"></i>
                   Идёт запись
                 </div>
-                <div id="process-timer" class="display-5 fw-bold font-monospace mb-3">
+                <div
+                  id="process-timer"
+                  class="display-5 fw-bold font-monospace mb-3"
+                >
                   00:00:00
                 </div>
                 <h2 id="active-run-batch" class="h5 mb-2">Партия</h2>
-                <div class="text-secondary small d-flex flex-wrap gap-2 gap-md-3">
+                <div
+                  class="text-secondary small d-flex flex-wrap gap-2 gap-md-3"
+                >
                   <span id="active-run-type">Ректификация</span>
                   <span id="active-run-started">Старт —</span>
                   <span id="active-run-sensors">0 датчиков</span>
@@ -169,7 +168,6 @@
                 </button>
               </div>
             </div>
-
           </div>
         </div>
 
@@ -290,48 +288,164 @@
             class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down"
           >
             <form id="start-run-form" class="modal-content" novalidate>
-                <div class="modal-header">
-                  <div>
-                    <div class="text-secondary small fw-semibold text-uppercase mb-1">
-                      Предпросмотр
-                    </div>
-                    <h2 class="modal-title fs-4" id="start-run-title">
-                      Настроить запись
-                    </h2>
-                  </div>
-                  <button
-                    type="button"
-                    class="btn-close"
-                    data-bs-dismiss="modal"
-                    aria-label="Закрыть"
-                  ></button>
-                </div>
-                <div class="modal-body">
+              <div class="modal-header">
+                <div>
                   <div
-                    id="start-run-description"
-                    class="alert alert-warning d-flex gap-2"
-                    role="note"
+                    class="text-secondary small fw-semibold text-uppercase mb-1"
                   >
-                    <i class="bi bi-info-circle flex-shrink-0" aria-hidden="true"></i>
-                    <div>
-                      Запуск сохраняет измерения выбранных датчиков, но не
-                      управляет оборудованием.
+                    Предпросмотр
+                  </div>
+                  <h2 class="modal-title fs-4" id="start-run-title">
+                    Настроить запись
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="Закрыть"
+                ></button>
+              </div>
+              <div class="modal-body">
+                <div
+                  id="start-run-description"
+                  class="alert alert-warning d-flex gap-2"
+                  role="note"
+                >
+                  <i
+                    class="bi bi-info-circle flex-shrink-0"
+                    aria-hidden="true"
+                  ></i>
+                  <div>
+                    Запуск сохраняет измерения выбранных датчиков, но не
+                    управляет оборудованием.
+                  </div>
+                </div>
+
+                <div
+                  id="start-run-error"
+                  class="alert alert-danger d-none"
+                  role="alert"
+                ></div>
+
+                <fieldset
+                  class="mb-4"
+                  aria-describedby="batch-load-status batch-load-error"
+                >
+                  <legend class="h6 mb-3">Партия</legend>
+                  <div
+                    id="batch-load-status"
+                    class="d-flex align-items-center gap-2 text-secondary"
+                    role="status"
+                  >
+                    <span
+                      class="spinner-border spinner-border-sm"
+                      aria-hidden="true"
+                    ></span>
+                    Загружаем партии…
+                  </div>
+                  <div
+                    id="batch-load-error"
+                    class="alert alert-warning d-none"
+                    role="alert"
+                  >
+                    <div class="mb-2">
+                      Не удалось загрузить партии. Можно заполнить новую партию,
+                      но запуск останется недоступен до синхронизации.
+                    </div>
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline-dark"
+                      data-action="reload-batches"
+                    >
+                      Повторить
+                    </button>
+                  </div>
+                  <div id="batch-options" class="d-none">
+                    <label class="form-label" for="batch-select">
+                      Выберите партию
+                    </label>
+                    <select
+                      id="batch-select"
+                      class="form-select"
+                      name="batch_id"
+                    ></select>
+                    <div id="new-batch-fields" class="mt-3 d-none">
+                      <div class="mb-3">
+                        <label class="form-label" for="new-batch-name">
+                          Название <span aria-hidden="true">*</span>
+                        </label>
+                        <input
+                          class="form-control"
+                          id="new-batch-name"
+                          type="text"
+                          autocomplete="off"
+                          placeholder="Брага · 17 сентября"
+                          aria-describedby="new-batch-name-error"
+                        />
+                        <div id="new-batch-name-error" class="invalid-feedback">
+                          Введите название партии.
+                        </div>
+                      </div>
+                      <div>
+                        <label class="form-label" for="new-batch-comment">
+                          Комментарий
+                          <span class="text-secondary">(необязательно)</span>
+                        </label>
+                        <textarea
+                          class="form-control"
+                          id="new-batch-comment"
+                          rows="2"
+                        ></textarea>
+                      </div>
                     </div>
                   </div>
+                </fieldset>
 
+                <fieldset class="mb-4">
+                  <legend class="h6 mb-3">Тип перегона</legend>
+                  <div class="form-check mb-2">
+                    <input
+                      class="form-check-input"
+                      type="radio"
+                      name="run-type"
+                      id="run-type-stripping"
+                      value="stripping"
+                      checked
+                    />
+                    <label class="form-check-label" for="run-type-stripping">
+                      Первый перегон
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input
+                      class="form-check-input"
+                      type="radio"
+                      name="run-type"
+                      id="run-type-rectification"
+                      value="rectification"
+                    />
+                    <label
+                      class="form-check-label"
+                      for="run-type-rectification"
+                    >
+                      Ректификация
+                    </label>
+                  </div>
+                </fieldset>
+
+                <fieldset aria-describedby="run-sensors-help run-sensors-error">
+                  <legend class="h6 mb-2">Датчики для записи</legend>
+                  <p id="run-sensors-help" class="text-secondary small">
+                    Доступные датчики выбраны автоматически.
+                  </p>
                   <div
-                    id="start-run-error"
-                    class="alert alert-danger d-none"
+                    id="run-sensor-warning"
+                    class="alert alert-warning py-2 d-none"
                     role="alert"
                   ></div>
-
-                  <fieldset
-                    class="mb-4"
-                    aria-describedby="batch-load-status batch-load-error"
-                  >
-                    <legend class="h6 mb-3">Партия</legend>
+                  <div id="run-sensor-options" class="d-grid gap-2">
                     <div
-                      id="batch-load-status"
                       class="d-flex align-items-center gap-2 text-secondary"
                       role="status"
                     >
@@ -339,137 +453,44 @@
                         class="spinner-border spinner-border-sm"
                         aria-hidden="true"
                       ></span>
-                      Загружаем партии…
+                      Получаем состояние датчиков…
                     </div>
-                    <div
-                      id="batch-load-error"
-                      class="alert alert-warning d-none"
-                      role="alert"
-                    >
-                      <div class="mb-2">
-                        Не удалось загрузить партии. Можно заполнить новую
-                        партию, но запуск останется недоступен до синхронизации.
-                      </div>
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-dark"
-                        data-action="reload-batches"
-                      >
-                        Повторить
-                      </button>
-                    </div>
-                    <div id="batch-options" class="d-none">
-                      <label class="form-label" for="batch-select">
-                        Выберите партию
-                      </label>
-                      <select
-                        id="batch-select"
-                        class="form-select"
-                        name="batch_id"
-                      ></select>
-                      <div id="new-batch-fields" class="mt-3 d-none">
-                        <div class="mb-3">
-                          <label class="form-label" for="new-batch-name">
-                            Название <span aria-hidden="true">*</span>
-                          </label>
-                          <input
-                            class="form-control"
-                            id="new-batch-name"
-                            type="text"
-                            autocomplete="off"
-                            placeholder="Брага · 17 сентября"
-                            aria-describedby="new-batch-name-error"
-                          />
-                          <div id="new-batch-name-error" class="invalid-feedback">
-                            Введите название партии.
-                          </div>
-                        </div>
-                        <div>
-                          <label class="form-label" for="new-batch-comment">
-                            Комментарий <span class="text-secondary">(необязательно)</span>
-                          </label>
-                          <textarea
-                            class="form-control"
-                            id="new-batch-comment"
-                            rows="2"
-                          ></textarea>
-                        </div>
-                      </div>
-                    </div>
-                  </fieldset>
-
-                  <fieldset class="mb-4">
-                    <legend class="h6 mb-3">Тип перегона</legend>
-                    <div class="form-check mb-2">
-                      <input
-                        class="form-check-input"
-                        type="radio"
-                        name="run-type"
-                        id="run-type-stripping"
-                        value="stripping"
-                        checked
-                      />
-                      <label class="form-check-label" for="run-type-stripping">
-                        Первый перегон
-                      </label>
-                    </div>
-                    <div class="form-check">
-                      <input
-                        class="form-check-input"
-                        type="radio"
-                        name="run-type"
-                        id="run-type-rectification"
-                        value="rectification"
-                      />
-                      <label class="form-check-label" for="run-type-rectification">
-                        Ректификация
-                      </label>
-                    </div>
-                  </fieldset>
-
-                  <fieldset aria-describedby="run-sensors-help run-sensors-error">
-                    <legend class="h6 mb-2">Датчики для записи</legend>
-                    <p id="run-sensors-help" class="text-secondary small">
-                      Доступные датчики выбраны автоматически.
-                    </p>
-                    <div
-                      id="run-sensor-warning"
-                      class="alert alert-warning py-2 d-none"
-                      role="alert"
-                    ></div>
-                    <div id="run-sensor-options" class="d-grid gap-2">
-                      <div class="d-flex align-items-center gap-2 text-secondary" role="status">
-                        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-                        Получаем состояние датчиков…
-                      </div>
-                    </div>
-                    <div id="run-sensors-error" class="text-danger small mt-2 d-none" role="alert">
-                      Выберите хотя бы один доступный датчик.
-                    </div>
-                  </fieldset>
-                </div>
-                <div class="modal-footer flex-column align-items-stretch">
-                  <div class="d-flex justify-content-end gap-2">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                      Закрыть
-                    </button>
-                    <button
-                      id="submit-start-run"
-                      type="submit"
-                      class="btn btn-success"
-                      disabled
-                      aria-describedby="start-run-disabled-reason"
-                    >
-                      Начать запись
-                    </button>
                   </div>
-                  <p
-                    id="start-run-disabled-reason"
-                    class="small text-secondary text-end mb-0"
+                  <div
+                    id="run-sensors-error"
+                    class="text-danger small mt-2 d-none"
+                    role="alert"
                   >
-                    Проверяем готовность к запуску…
-                  </p>
+                    Выберите хотя бы один доступный датчик.
+                  </div>
+                </fieldset>
+              </div>
+              <div class="modal-footer flex-column align-items-stretch">
+                <div class="d-flex justify-content-end gap-2">
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    data-bs-dismiss="modal"
+                  >
+                    Закрыть
+                  </button>
+                  <button
+                    id="submit-start-run"
+                    type="submit"
+                    class="btn btn-success"
+                    disabled
+                    aria-describedby="start-run-disabled-reason"
+                  >
+                    Начать запись
+                  </button>
                 </div>
+                <p
+                  id="start-run-disabled-reason"
+                  class="small text-secondary text-end mb-0"
+                >
+                  Проверяем готовность к запуску…
+                </p>
+              </div>
             </form>
           </div>
         </div>
@@ -488,19 +509,39 @@
                 <h2 class="modal-title fs-4" id="stop-run-title">
                   Остановить запись?
                 </h2>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                <button
+                  type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="Закрыть"
+                ></button>
               </div>
               <div class="modal-body">
+                <div
+                  id="stop-run-error"
+                  class="alert alert-danger d-none"
+                  role="alert"
+                ></div>
                 <p class="mb-2"><strong data-stop-batch>Партия</strong></p>
-                <p class="text-secondary">Длительность: <span data-stop-duration>00:00:00</span></p>
+                <p class="text-secondary">
+                  Длительность: <span data-stop-duration>00:00:00</span>
+                </p>
                 <div id="stop-run-description" class="alert alert-warning mb-0">
-                  Завершится только запись данных. Оборудование продолжит работу.
+                  Завершится только запись данных. Оборудование продолжит
+                  работу.
                 </div>
               </div>
               <div class="modal-footer flex-column align-items-stretch">
                 <div class="d-flex justify-content-end gap-2">
-                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
                   <button
+                    type="button"
+                    class="btn btn-secondary"
+                    data-bs-dismiss="modal"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    id="submit-stop-run"
                     type="button"
                     class="btn btn-danger"
                     disabled
@@ -509,8 +550,11 @@
                     Остановить запись
                   </button>
                 </div>
-                <p id="stop-run-disabled-reason" class="small text-secondary text-end mb-0">
-                  Остановка записи появится после подключения backend.
+                <p
+                  id="stop-run-disabled-reason"
+                  class="small text-secondary text-end mb-0"
+                >
+                  Проверяем состояние записи…
                 </p>
               </div>
             </div>
@@ -526,56 +570,54 @@
         >
           <div class="modal-dialog modal-dialog-centered">
             <form id="sensor-settings-form" class="modal-content" novalidate>
-                <div class="modal-header">
-                  <h2 class="modal-title fs-5" id="sensor-settings-title">
-                    Настройка датчика
-                  </h2>
-                  <button
-                    type="button"
-                    class="btn-close"
-                    data-bs-dismiss="modal"
-                    aria-label="Закрыть"
-                  ></button>
+              <div class="modal-header">
+                <h2 class="modal-title fs-5" id="sensor-settings-title">
+                  Настройка датчика
+                </h2>
+                <button
+                  type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="Закрыть"
+                ></button>
+              </div>
+              <div class="modal-body">
+                <div class="mb-3">
+                  <label for="sensor-hardware-id" class="form-label">
+                    Hardware ID
+                  </label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="sensor-hardware-id"
+                    readonly
+                  />
                 </div>
-                <div class="modal-body">
-                  <div class="mb-3">
-                    <label for="sensor-hardware-id" class="form-label">
-                      Hardware ID
-                    </label>
-                    <input
-                      type="text"
-                      class="form-control"
-                      id="sensor-hardware-id"
-                      readonly
-                    />
-                  </div>
-                  <div>
-                    <label for="sensor-name" class="form-label">Название</label>
-                    <input
-                      type="text"
-                      class="form-control"
-                      id="sensor-name"
-                      autocomplete="off"
-                      required
-                    />
-                    <div
-                      id="sensor-settings-error"
-                      class="invalid-feedback"
-                    ></div>
-                  </div>
+                <div>
+                  <label for="sensor-name" class="form-label">Название</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="sensor-name"
+                    autocomplete="off"
+                    required
+                  />
+                  <div
+                    id="sensor-settings-error"
+                    class="invalid-feedback"
+                  ></div>
                 </div>
-                <div class="modal-footer">
-                  <button
-                    type="button"
-                    class="btn btn-secondary"
-                    data-bs-dismiss="modal"
-                  >
-                    Отмена
-                  </button>
-                  <button type="submit" class="btn btn-primary">
-                    Сохранить
-                  </button>
-                </div>
+              </div>
+              <div class="modal-footer">
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  data-bs-dismiss="modal"
+                >
+                  Отмена
+                </button>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+              </div>
             </form>
           </div>
         </div>
@@ -655,8 +697,17 @@
       );
       const startRunButton = document.getElementById("open-start-run");
       const stopRunButton = document.getElementById("stop-run-button");
+      const stopRunModalElement = document.getElementById("stop-run-modal");
+      const stopRunModal =
+        bootstrap.Modal.getOrCreateInstance(stopRunModalElement);
+      const stopRunSubmit = document.getElementById("submit-stop-run");
+      const stopRunDisabledReason = document.getElementById(
+        "stop-run-disabled-reason",
+      );
+      const stopRunError = document.getElementById("stop-run-error");
       const startRunModalElement = document.getElementById("start-run-modal");
-      const startRunModal = bootstrap.Modal.getOrCreateInstance(startRunModalElement);
+      const startRunModal =
+        bootstrap.Modal.getOrCreateInstance(startRunModalElement);
       const startRunForm = document.getElementById("start-run-form");
       const startRunSubmit = document.getElementById("submit-start-run");
       const startRunDisabledReason = document.getElementById(
@@ -678,11 +729,14 @@
       let batchesLoaded = false;
       let batchesLoading = false;
       let startRunSubmitting = false;
+      let stopRunSubmitting = false;
 
       function selectedRunSensorIDs() {
-        return [...startRunForm.querySelectorAll(
-          'input[name="sensor_hardware_ids"]:checked:not(:disabled)',
-        )].map((input) => input.value);
+        return [
+          ...startRunForm.querySelectorAll(
+            'input[name="sensor_hardware_ids"]:checked:not(:disabled)',
+          ),
+        ].map((input) => input.value);
       }
 
       function updateStartRunAvailability() {
@@ -700,7 +754,8 @@
         } else if (confirmedProcess.status !== "STOPPED") {
           reason = "Запись уже запущена.";
         } else if (!batchesLoaded) reason = "Не удалось загрузить партии.";
-        else if (!hasBatch) reason = "Выберите партию или введите название новой.";
+        else if (!hasBatch)
+          reason = "Выберите партию или введите название новой.";
         else if (!hasSensor) reason = "Выберите хотя бы один доступный датчик.";
 
         startRunSubmit.disabled = Boolean(reason);
@@ -717,10 +772,40 @@
           !processSynchronized || confirmedProcess.status !== "STOPPED";
       }
 
+      function updateStopRunAvailability() {
+        let reason = "";
+
+        if (stopRunSubmitting) reason = "Останавливаем запись…";
+        else if (!processSynchronized) {
+          reason = "Нет связи с сервисом. Ожидаем синхронизацию…";
+        } else if (
+          confirmedProcess.status !== "RUNNING" ||
+          !confirmedProcess.active_run
+        ) {
+          reason = "Активная запись не найдена.";
+        }
+
+        stopRunButton.disabled = Boolean(reason);
+        stopRunSubmit.disabled = Boolean(reason);
+        stopRunSubmit.innerHTML = stopRunSubmitting
+          ? '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Останавливаем запись…'
+          : "Остановить запись";
+        stopRunDisabledReason.textContent =
+          reason || "Запись готова к остановке.";
+        for (const button of stopRunModalElement.querySelectorAll(
+          '[data-bs-dismiss="modal"]',
+        )) {
+          button.disabled = stopRunSubmitting;
+        }
+      }
+
       function formatDuration(totalMilliseconds) {
         const totalSeconds = Math.max(0, Math.floor(totalMilliseconds / 1000));
         const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
-        const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+        const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(
+          2,
+          "0",
+        );
         const seconds = String(totalSeconds % 60).padStart(2, "0");
         return `${hours}:${minutes}:${seconds}`;
       }
@@ -738,9 +823,15 @@
       }
 
       function updateProcessTimer() {
-        if (confirmedProcess.status !== "RUNNING" || !confirmedProcess.active_run) return;
+        if (
+          confirmedProcess.status !== "RUNNING" ||
+          !confirmedProcess.active_run
+        )
+          return;
         const duration = formatDuration(
-          Date.now() + serverClockOffset - new Date(confirmedProcess.active_run.started_at).getTime(),
+          Date.now() +
+            serverClockOffset -
+            new Date(confirmedProcess.active_run.started_at).getTime(),
         );
         document.getElementById("process-timer").textContent = duration;
         document.querySelector("[data-stop-duration]").textContent = duration;
@@ -755,7 +846,8 @@
         processCard.dataset.processStatus = status;
         confirmedProcess = process;
         if (process.server_time) {
-          serverClockOffset = new Date(process.server_time).getTime() - Date.now();
+          serverClockOffset =
+            new Date(process.server_time).getTime() - Date.now();
         }
         processStopped.classList.toggle(
           "d-none",
@@ -777,35 +869,43 @@
         const badgeText = isRunning
           ? "Идёт запись"
           : isTransition
-            ? status === "STARTING" ? "Запись запускается" : "Запись останавливается"
+            ? status === "STARTING"
+              ? "Запись запускается"
+              : "Запись останавливается"
             : "Запись остановлена";
         for (const badge of document.querySelectorAll("[data-process-badge]")) {
           badge.textContent = badgeText;
           badge.classList.toggle("text-bg-success", isRunning);
           badge.classList.toggle("text-bg-warning", isTransition);
-          badge.classList.toggle("text-bg-secondary", !isRunning && !isTransition);
+          badge.classList.toggle(
+            "text-bg-secondary",
+            !isRunning && !isTransition,
+          );
         }
 
         startRunButton.disabled = !processSynchronized || status !== "STOPPED";
-        startRunButton.innerHTML = status === "STARTING"
-          ? '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Начинаем запись…'
-          : "Настроить запись";
-        stopRunButton.disabled = true;
+        startRunButton.innerHTML =
+          status === "STARTING"
+            ? '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Начинаем запись…'
+            : "Настроить запись";
         stopRunButton.textContent = "Остановить запись";
 
         if ((isRunning || status === "STOPPING") && process.active_run) {
           const run = process.active_run;
-          document.getElementById("active-run-batch").textContent = run.batch.name;
+          document.getElementById("active-run-batch").textContent =
+            run.batch.name;
           document.getElementById("active-run-type").textContent =
             run.type === "stripping" ? "Первый перегон" : "Ректификация";
           document.getElementById("active-run-started").textContent =
             `Старт ${lastReadFormatter.format(new Date(run.started_at))}`;
           document.getElementById("active-run-sensors").textContent =
             formatSensorCount(run.sensor_count);
-          document.querySelector("[data-stop-batch]").textContent = run.batch.name;
+          document.querySelector("[data-stop-batch]").textContent =
+            run.batch.name;
           updateProcessTimer();
         }
         updateStartRunAvailability();
+        updateStopRunAvailability();
       }
 
       async function loadProcess() {
@@ -814,7 +914,12 @@
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
           const process = await response.json();
-          const supportedStatuses = ["STOPPED", "STARTING", "RUNNING", "STOPPING"];
+          const supportedStatuses = [
+            "STOPPED",
+            "STARTING",
+            "RUNNING",
+            "STOPPING",
+          ];
           if (!supportedStatuses.includes(process.status)) {
             throw new Error("Unexpected process status");
           }
@@ -829,12 +934,14 @@
           processSynchronized = true;
           processSyncWarning.classList.add("d-none");
           updateStartRunAvailability();
+          updateStopRunAvailability();
           return process;
         } catch (error) {
           console.error("Failed to load process:", error);
           processSynchronized = false;
           processSyncWarning.classList.remove("d-none");
           updateStartRunAvailability();
+          updateStopRunAvailability();
           return null;
         }
       }
@@ -845,6 +952,78 @@
       loadProcess();
       setInterval(loadProcess, statusPollingInterval);
       setInterval(updateProcessTimer, 1000);
+
+      stopRunModalElement.addEventListener("show.bs.modal", (event) => {
+        if (
+          !processSynchronized ||
+          confirmedProcess.status !== "RUNNING" ||
+          !confirmedProcess.active_run
+        ) {
+          event.preventDefault();
+          return;
+        }
+
+        stopRunError.textContent = "";
+        stopRunError.classList.add("d-none");
+        updateProcessTimer();
+        updateStopRunAvailability();
+      });
+
+      stopRunModalElement.addEventListener("hide.bs.modal", (event) => {
+        if (stopRunSubmitting) event.preventDefault();
+      });
+
+      stopRunSubmit.addEventListener("click", async () => {
+        if (
+          stopRunSubmitting ||
+          !processSynchronized ||
+          confirmedProcess.status !== "RUNNING" ||
+          !confirmedProcess.active_run
+        )
+          return;
+
+        const runID = confirmedProcess.active_run.id;
+        stopRunSubmitting = true;
+        stopRunError.textContent = "";
+        stopRunError.classList.add("d-none");
+        updateStopRunAvailability();
+
+        try {
+          const response = await fetch(
+            `/api/runs/${encodeURIComponent(runID)}/stop`,
+            { method: "POST" },
+          );
+
+          if (response.status === 204) {
+            stopRunSubmitting = false;
+            renderProcess({ status: "STOPPED", active_run: null });
+            stopRunModal.hide();
+            await loadProcess();
+            return;
+          }
+
+          if (response.status === 409) {
+            const process = await loadProcess();
+            stopRunSubmitting = false;
+            updateStopRunAvailability();
+            if (process?.status === "STOPPED") {
+              stopRunModal.hide();
+              return;
+            }
+            throw new Error("conflict");
+          }
+
+          throw new Error(`HTTP ${response.status}`);
+        } catch (error) {
+          console.error("Failed to stop run:", error);
+          stopRunSubmitting = false;
+          stopRunError.textContent =
+            "Не удалось остановить запись. Проверьте связь и попробуйте ещё раз.";
+          stopRunError.classList.remove("d-none");
+          updateStopRunAvailability();
+          await loadProcess();
+        }
+      });
 
       for (const card of document.querySelectorAll(".sensor-card")) {
         sensorMetadata.set(card.dataset.sensorId, {
@@ -912,14 +1091,20 @@
       }
 
       function sensorIsAvailable(sensor) {
-        return sensor.enabled && sensor.status === "OK" && hasSuccessfulRead(sensor);
+        return (
+          sensor.enabled && sensor.status === "OK" && hasSuccessfulRead(sensor)
+        );
       }
 
       function renderRunSensorOptions(sensors) {
         const container = document.getElementById("run-sensor-options");
-        const previousInputs = [...container.querySelectorAll('input[type="checkbox"]')];
+        const previousInputs = [
+          ...container.querySelectorAll('input[type="checkbox"]'),
+        ];
         const previousSelection = new Set(
-          previousInputs.filter((input) => input.checked).map((input) => input.value),
+          previousInputs
+            .filter((input) => input.checked)
+            .map((input) => input.value),
         );
         const hadOptions = previousInputs.length > 0;
         const options = document.createDocumentFragment();
@@ -927,8 +1112,7 @@
         for (const sensor of sensors) {
           const available = sensorIsAvailable(sensor);
           if (!available && previousSelection.has(sensor.id)) {
-            runSensorAvailabilityWarning =
-              `Датчик «${sensor.name}» стал недоступен и исключён из записи.`;
+            runSensorAvailabilityWarning = `Датчик «${sensor.name}» стал недоступен и исключён из записи.`;
           }
 
           const wrapper = document.createElement("div");
@@ -941,12 +1125,15 @@
           input.id = `run-sensor-${sensor.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
           input.value = sensor.id;
           input.disabled = !available;
-          input.checked = available && (!hadOptions || previousSelection.has(sensor.id));
+          input.checked =
+            available && (!hadOptions || previousSelection.has(sensor.id));
 
           const label = document.createElement("label");
           label.className = "form-check-label d-block";
           label.htmlFor = input.id;
-          const state = available ? "Доступен" : "Недоступен: нет успешного чтения";
+          const state = available
+            ? "Доступен"
+            : "Недоступен: нет успешного чтения";
           label.innerHTML = `<span class="fw-semibold"></span><span class="d-block small text-secondary"></span>`;
           label.children[0].textContent = sensor.name;
           label.children[1].textContent = `${sensor.id} · ${state}`;
@@ -1205,7 +1392,8 @@
         );
         newBatchName.classList.toggle("is-invalid", isNewBatch && !hasBatch);
         if (!hasSensor) {
-          runSensorsError.textContent = "Выберите хотя бы один доступный датчик.";
+          runSensorsError.textContent =
+            "Выберите хотя бы один доступный датчик.";
           runSensorsError.classList.remove("d-none");
         }
         updateStartRunAvailability();
@@ -1263,7 +1451,12 @@
 
       startRunForm.addEventListener("submit", async (event) => {
         event.preventDefault();
-        if (startRunSubmitting || !validateRunDraft() || startRunSubmit.disabled) return;
+        if (
+          startRunSubmitting ||
+          !validateRunDraft() ||
+          startRunSubmit.disabled
+        )
+          return;
 
         startRunSubmitting = true;
         startRunError.classList.add("d-none");
@@ -1279,13 +1472,18 @@
               comment: newBatchComment.value.trim(),
             });
             if (!Number.isInteger(batch.id) || batch.id <= 0) {
-              throw new Error("Сервис вернул некорректный идентификатор партии.");
+              throw new Error(
+                "Сервис вернул некорректный идентификатор партии.",
+              );
             }
 
             const option = document.createElement("option");
             option.value = String(batch.id);
             option.textContent = batch.name;
-            batchSelect.insertBefore(option, batchSelect.querySelector('option[value="new"]'));
+            batchSelect.insertBefore(
+              option,
+              batchSelect.querySelector('option[value="new"]'),
+            );
             batchSelect.value = option.value;
             showNewBatchFields(false);
             batchID = batch.id;
@@ -1296,7 +1494,8 @@
           requestStage = "run";
           const run = await postJSON("/api/runs", {
             batch_id: batchID,
-            type: startRunForm.querySelector('input[name="run-type"]:checked').value,
+            type: startRunForm.querySelector('input[name="run-type"]:checked')
+              .value,
             sensor_hardware_ids: selectedRunSensorIDs(),
           });
 

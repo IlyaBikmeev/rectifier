@@ -11,6 +11,7 @@ import (
 type RunRepository interface {
 	Active(ctx context.Context) (*Run, error)
 	Create(ctx context.Context, run Run) (*Run, error)
+	Stop(ctx context.Context, id int) error
 }
 
 type SQLiteRunRepository struct {
@@ -18,6 +19,8 @@ type SQLiteRunRepository struct {
 }
 
 var _ RunRepository = (*SQLiteRunRepository)(nil)
+
+var ErrRunNotActive = errors.New("run is not active")
 
 func NewSQLiteRunRepository(db *sql.DB) *SQLiteRunRepository {
 	return &SQLiteRunRepository{db: db}
@@ -222,4 +225,56 @@ func (rr *SQLiteRunRepository) Create(ctx context.Context, run Run) (*Run, error
 	}
 
 	return &run, nil
+}
+
+func (rr *SQLiteRunRepository) Stop(ctx context.Context, id int) error {
+	stoppedAt := time.Now().UTC()
+
+	tx, err := rr.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin stop run transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	result, err := tx.ExecContext(ctx, `
+		UPDATE runs
+		SET status = 'STOPPED', stopped_at = ?
+		WHERE id = ?
+			AND status = 'RUNNING'
+			AND stopped_at IS NULL
+	`, stoppedAt, id)
+	if err != nil {
+		return fmt.Errorf("stop run %d: %w", id, err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("get affected rows for run %d: %w", id, err)
+	}
+	if affected != 1 {
+		return fmt.Errorf("stop run %d: %w", id, ErrRunNotActive)
+	}
+
+	result, err = tx.ExecContext(ctx, `
+		UPDATE batches
+		SET updated_at = ?
+		WHERE id = (SELECT batch_id FROM runs WHERE id = ?)
+	`, stoppedAt, id)
+	if err != nil {
+		return fmt.Errorf("update batch for run %d: %w", id, err)
+	}
+
+	affected, err = result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("get affected batch rows for run %d: %w", id, err)
+	}
+	if affected != 1 {
+		return fmt.Errorf("update batch for run %d: expected one row, got %d", id, affected)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit stop run transaction: %w", err)
+	}
+
+	return nil
 }
