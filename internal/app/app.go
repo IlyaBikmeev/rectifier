@@ -114,6 +114,7 @@ func Run(
 	sensorRepository storage.SensorRepository,
 	batchRepository storage.BatchRepository,
 	runRepository storage.RunRepository,
+	measurementRepository storage.MeasurementRepository,
 ) {
 	appState := NewAppState()
 	appCtx, cancelApp := context.WithCancel(context.Background())
@@ -144,7 +145,7 @@ func Run(
 	}
 
 	//TODO handle pollingDone before exiting
-	go runSensorPolling(appCtx, appState, sensorRegistry)
+	go runSensorPolling(appCtx, appState, sensorRegistry, measurementRepository)
 
 	mux := http.NewServeMux()
 	staticHandler := http.FileServerFS(staticFiles)

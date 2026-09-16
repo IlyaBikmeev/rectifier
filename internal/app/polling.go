@@ -2,14 +2,16 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"rectifier/internal/registry"
+	"rectifier/internal/storage"
 	"time"
 )
 
 const pollingInterval = 5 * time.Second
 
-func runSensorPolling(ctx context.Context, appState *AppState, sensorRegistry registry.SensorRegistry) {
-	pollSensors(ctx, appState, sensorRegistry)
+func runSensorPolling(ctx context.Context, appState *AppState, sensorRegistry registry.SensorRegistry, measurementRepository storage.MeasurementRepository) {
+	pollSensors(ctx, appState, sensorRegistry, measurementRepository)
 
 	ticker := time.NewTicker(pollingInterval)
 	defer ticker.Stop()
@@ -19,12 +21,22 @@ func runSensorPolling(ctx context.Context, appState *AppState, sensorRegistry re
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			pollSensors(ctx, appState, sensorRegistry)
+			pollSensors(ctx, appState, sensorRegistry, measurementRepository)
 		}
 	}
 }
 
-func pollSensors(ctx context.Context, appState *AppState, sensorRegistry registry.SensorRegistry) {
+func pollSensors(ctx context.Context, appState *AppState, sensorRegistry registry.SensorRegistry, measurementRepository storage.MeasurementRepository) {
+	process := appState.ProcessSnapshot()
+
+	selectedSensors := make(map[string]struct{})
+	if process.status == ProcessStatusRunning && process.activeRun != nil {
+		for _, hardwareID := range process.activeRun.sensorHardwareIDs {
+			selectedSensors[hardwareID] = struct{}{}
+		}
+	}
+	measurements := make([]storage.Measurement, 0, len(selectedSensors))
+
 	sensors, err := sensorRegistry.Sensors()
 	if err != nil {
 		//TODO handle error
@@ -55,14 +67,29 @@ func pollSensors(ctx context.Context, appState *AppState, sensorRegistry registr
 			continue
 		}
 
+		measuredAt := time.Now().UTC()
+
 		appState.mutex.Lock()
 
 		sensorState := appState.sensors[discoveredSensor.ID()]
-		sensorState.lastSuccessfulRead = time.Now()
+		sensorState.lastSuccessfulRead = measuredAt
 		sensorState.status = "OK"
 		sensorState.temperature = temperature
 		appState.sensors[discoveredSensor.ID()] = sensorState
 
 		appState.mutex.Unlock()
+
+		if _, selected := selectedSensors[discoveredSensor.ID()]; selected {
+			measurements = append(measurements, storage.Measurement{
+				RunID:            process.activeRun.id,
+				SensorHardwareID: discoveredSensor.ID(),
+				MeasuredAt:       measuredAt,
+				Value:            temperature,
+			})
+		}
+	}
+
+	if err := measurementRepository.Save(ctx, measurements); err != nil {
+		fmt.Printf("save measurements: %v\n", err)
 	}
 }
