@@ -320,48 +320,75 @@
                     </div>
                   </div>
 
-                  <fieldset class="mb-4">
+                  <fieldset
+                    class="mb-4"
+                    aria-describedby="batch-load-status batch-load-error"
+                  >
                     <legend class="h6 mb-3">Партия</legend>
-                    <div class="form-check">
-                      <input
-                        class="form-check-input"
-                        type="radio"
-                        name="batch-source"
-                        id="new-batch"
-                        value="new"
-                        checked
-                      />
-                      <label class="form-check-label" for="new-batch">
-                        Новая партия
-                      </label>
+                    <div
+                      id="batch-load-status"
+                      class="d-flex align-items-center gap-2 text-secondary"
+                      role="status"
+                    >
+                      <span
+                        class="spinner-border spinner-border-sm"
+                        aria-hidden="true"
+                      ></span>
+                      Загружаем партии…
                     </div>
-                    <div id="new-batch-fields" class="mt-3 ps-md-4">
-                      <div class="mb-3">
-                        <label class="form-label" for="new-batch-name">
-                          Название <span aria-hidden="true">*</span>
-                        </label>
-                        <input
-                          class="form-control"
-                          id="new-batch-name"
-                          type="text"
-                          required
-                          autocomplete="off"
-                          placeholder="Брага · 16 сентября"
-                          aria-describedby="new-batch-name-error"
-                        />
-                        <div id="new-batch-name-error" class="invalid-feedback">
-                          Введите название партии.
-                        </div>
+                    <div
+                      id="batch-load-error"
+                      class="alert alert-warning d-none"
+                      role="alert"
+                    >
+                      <div class="mb-2">
+                        Не удалось загрузить партии. Можно заполнить новую
+                        партию, но запуск останется недоступен до синхронизации.
                       </div>
-                      <div>
-                        <label class="form-label" for="new-batch-comment">
-                          Комментарий <span class="text-secondary">(необязательно)</span>
-                        </label>
-                        <textarea
-                          class="form-control"
-                          id="new-batch-comment"
-                          rows="2"
-                        ></textarea>
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-dark"
+                        data-action="reload-batches"
+                      >
+                        Повторить
+                      </button>
+                    </div>
+                    <div id="batch-options" class="d-none">
+                      <label class="form-label" for="batch-select">
+                        Выберите партию
+                      </label>
+                      <select
+                        id="batch-select"
+                        class="form-select"
+                        name="batch_id"
+                      ></select>
+                      <div id="new-batch-fields" class="mt-3 d-none">
+                        <div class="mb-3">
+                          <label class="form-label" for="new-batch-name">
+                            Название <span aria-hidden="true">*</span>
+                          </label>
+                          <input
+                            class="form-control"
+                            id="new-batch-name"
+                            type="text"
+                            autocomplete="off"
+                            placeholder="Брага · 17 сентября"
+                            aria-describedby="new-batch-name-error"
+                          />
+                          <div id="new-batch-name-error" class="invalid-feedback">
+                            Введите название партии.
+                          </div>
+                        </div>
+                        <div>
+                          <label class="form-label" for="new-batch-comment">
+                            Комментарий <span class="text-secondary">(необязательно)</span>
+                          </label>
+                          <textarea
+                            class="form-control"
+                            id="new-batch-comment"
+                            rows="2"
+                          ></textarea>
+                        </div>
                       </div>
                     </div>
                   </fieldset>
@@ -974,21 +1001,112 @@
       });
 
       const startRunForm = document.getElementById("start-run-form");
+      const batchLoadStatus = document.getElementById("batch-load-status");
+      const batchLoadError = document.getElementById("batch-load-error");
+      const batchOptions = document.getElementById("batch-options");
+      const batchSelect = document.getElementById("batch-select");
+      const newBatchFields = document.getElementById("new-batch-fields");
       const newBatchName = document.getElementById("new-batch-name");
       const runSensorsError = document.getElementById("run-sensors-error");
 
+      function showNewBatchFields(show) {
+        newBatchFields.classList.toggle("d-none", !show);
+        newBatchName.required = show;
+        if (!show) newBatchName.classList.remove("is-invalid");
+      }
+
+      function renderBatchOptions(batches, selectNewBatch) {
+        const options = document.createDocumentFragment();
+
+        for (const batch of batches) {
+          const option = document.createElement("option");
+          option.value = String(batch.id);
+          option.textContent = batch.name;
+          options.append(option);
+        }
+
+        const newBatchOption = document.createElement("option");
+        newBatchOption.value = "new";
+        newBatchOption.textContent = "Новая партия…";
+        options.append(newBatchOption);
+
+        batchSelect.replaceChildren(options);
+        batchSelect.value =
+          selectNewBatch || batches.length === 0
+            ? "new"
+            : String(batches[0].id);
+        showNewBatchFields(batchSelect.value === "new");
+      }
+
+      async function loadBatches(preserveSelection = false) {
+        const keepNewBatch =
+          preserveSelection &&
+          batchSelect.value === "new" &&
+          newBatchName.value.trim().length > 0;
+
+        batchLoadStatus.classList.remove("d-none");
+        batchLoadError.classList.add("d-none");
+        batchOptions.classList.add("d-none");
+
+        try {
+          const response = await fetch("/api/batches", { cache: "no-store" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+          const batches = await response.json();
+          if (!Array.isArray(batches)) {
+            throw new Error("Unexpected batches response format");
+          }
+
+          renderBatchOptions(batches, keepNewBatch);
+          batchOptions.classList.remove("d-none");
+
+          if (startRunModalElement.classList.contains("show")) {
+            if (batchSelect.value === "new") {
+              newBatchName.focus();
+            } else {
+              batchSelect.focus();
+            }
+          }
+        } catch (error) {
+          console.error("Failed to load batches:", error);
+          renderBatchOptions([], true);
+          showNewBatchFields(true);
+          batchOptions.classList.remove("d-none");
+          batchLoadError.classList.remove("d-none");
+          if (startRunModalElement.classList.contains("show")) {
+            newBatchName.focus();
+          }
+        } finally {
+          batchLoadStatus.classList.add("d-none");
+        }
+      }
+
       function validateRunDraft() {
-        const hasName = newBatchName.value.trim().length > 0;
+        const isNewBatch = batchSelect.value === "new";
+        const hasBatch = isNewBatch
+          ? newBatchName.value.trim().length > 0
+          : batchSelect.value.length > 0;
         const hasSensor = startRunForm.querySelector(
           'input[name="sensor_hardware_ids"]:checked:not(:disabled)',
         );
-        newBatchName.classList.toggle("is-invalid", !hasName);
+        newBatchName.classList.toggle("is-invalid", isNewBatch && !hasBatch);
         if (!hasSensor) {
           runSensorsError.textContent = "Выберите хотя бы один доступный датчик.";
           runSensorsError.classList.remove("d-none");
         }
-        return hasName && Boolean(hasSensor);
+        return hasBatch && Boolean(hasSensor);
       }
+
+      batchSelect.addEventListener("change", () => {
+        const isNewBatch = batchSelect.value === "new";
+        showNewBatchFields(isNewBatch);
+        if (isNewBatch) newBatchName.focus();
+      });
+
+      batchLoadError.addEventListener("click", (event) => {
+        if (!event.target.closest('[data-action="reload-batches"]')) return;
+        loadBatches(true);
+      });
 
       startRunForm.addEventListener("input", () => {
         if (newBatchName.classList.contains("is-invalid")) {
@@ -1013,7 +1131,7 @@
 
       const startRunModalElement = document.getElementById("start-run-modal");
       startRunModalElement.addEventListener("shown.bs.modal", () => {
-        newBatchName.focus();
+        loadBatches();
       });
       startRunModalElement.addEventListener("hidden.bs.modal", () => {
         runSensorAvailabilityWarning = "";
