@@ -10,6 +10,7 @@ import (
 
 type SensorRepository interface {
 	FindByHardwareIDs(ctx context.Context, hardwareIDs []string) ([]Sensor, error)
+	ExistsByHardwareID(ctx context.Context, hardwareID string) (bool, error)
 	Save(ctx context.Context, sensor Sensor) (Sensor, error)
 }
 
@@ -86,6 +87,22 @@ func (sr *SQLiteSensorRepository) FindByHardwareIDs(ctx context.Context, hardwar
 	}
 
 	return sensors, nil
+}
+
+func (sr *SQLiteSensorRepository) ExistsByHardwareID(ctx context.Context, hardwareID string) (bool, error) {
+	const query = "SELECT EXISTS (SELECT 1 FROM sensors WHERE hardware_id = ?)"
+
+	var exists bool
+
+	if err := sr.db.QueryRowContext(
+		ctx,
+		query,
+		hardwareID,
+	).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check sensor %q existence: %w", hardwareID, err)
+	}
+
+	return exists, nil
 }
 
 func (sr *SQLiteSensorRepository) Save(ctx context.Context, sensor Sensor) (Sensor, error) {
