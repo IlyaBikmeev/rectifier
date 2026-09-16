@@ -2,7 +2,7 @@ package app
 
 import (
 	"context"
-	_ "embed"
+	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +25,9 @@ var indexHTML string
 
 //go:embed templates/icon.png
 var iconPNG []byte
+
+//go:embed static
+var staticFiles embed.FS
 
 var indexTemplate = template.Must(
 	template.New("index").Parse(indexHTML),
@@ -92,6 +95,11 @@ func Run(sensorRegistry registry.SensorRegistry, sensorRepository storage.Sensor
 	go runSensorPolling(appCtx, appState, sensorRegistry)
 
 	mux := http.NewServeMux()
+	staticHandler := http.FileServerFS(staticFiles)
+	mux.Handle("GET /static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		staticHandler.ServeHTTP(w, r)
+	}))
 	mux.HandleFunc("GET /icon.png", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
 		w.Header().Set("Cache-Control", "public, max-age=86400")
@@ -193,7 +201,7 @@ func syncDiscoveredSensors(
 			fmt.Printf("sensor %q not found, saving in database ...\n", discoveredSensor.ID())
 			persistedSensor, err = sensorRepository.Save(ctx, storage.Sensor{
 				HardwareID:      discoveredSensor.ID(),
-				Name:            discoveredSensor.ID(),
+				Name:            discoveredSensor.Name(),
 				MeasurementType: "temperature",
 				Unit:            "celsius",
 				Enabled:         true,
