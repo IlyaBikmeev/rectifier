@@ -15,7 +15,9 @@
   <body class="bg-light">
     <div class="container py-4">
       <!-- Header -->
-      <div class="d-flex justify-content-between align-items-center mb-4">
+      <div
+        class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4"
+      >
         <div>
           <h1 class="mb-1">Rectifier</h1>
           <div class="text-secondary">Мониторинг ректификационной колонны</div>
@@ -74,15 +76,32 @@
       <!-- Sensors -->
       <div id="sensor-list" class="row g-3" aria-live="polite">
         {{range .Sensors}}
-        <div class="col-12 col-md-6 col-lg-4">
+        <div
+          class="col-12 col-md-6 col-lg-4 sensor-card"
+          data-sensor-id="{{.ID}}"
+          data-sensor-name="{{.Name}}"
+          data-measurement-type="{{.MeasurementType}}"
+          data-unit="{{.Unit}}"
+          data-enabled="{{.Enabled}}"
+        >
           <div class="card h-100 shadow-sm">
             <div class="card-body">
-              <div class="d-flex justify-content-between align-items-start">
+              <div
+                class="d-flex flex-wrap justify-content-between align-items-start gap-3"
+              >
                 <div>
                   <h5 class="card-title mb-1">{{.Name}}</h5>
 
                   <div class="text-secondary small">{{.ID}}</div>
                 </div>
+
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-secondary"
+                  data-action="configure-sensor"
+                >
+                  Настроить
+                </button>
               </div>
 
               <div class="mt-4">
@@ -99,18 +118,27 @@
       </div>
 
       <template id="sensor-card-template">
-        <div class="col-12 col-md-6 col-lg-4">
+        <div class="col-12 col-md-6 col-lg-4 sensor-card">
           <div class="card h-100 shadow-sm">
             <div class="card-body">
               <div
-                class="d-flex justify-content-between align-items-start gap-3"
+                class="d-flex flex-wrap justify-content-between align-items-start gap-3"
               >
                 <div>
                   <h5 class="card-title mb-1" data-field="name"></h5>
                   <div class="text-secondary small" data-field="id"></div>
                 </div>
 
-                <span class="badge" data-field="status"></span>
+                <div class="d-flex flex-column align-items-end gap-2">
+                  <span class="badge" data-field="status"></span>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    data-action="configure-sensor"
+                  >
+                    Настроить
+                  </button>
+                </div>
               </div>
 
               <div class="mt-4">
@@ -129,6 +157,66 @@
           </div>
         </div>
       </template>
+
+      <div
+        class="modal fade"
+        id="sensor-settings-modal"
+        tabindex="-1"
+        aria-labelledby="sensor-settings-title"
+        aria-hidden="true"
+      >
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <form id="sensor-settings-form" novalidate>
+              <div class="modal-header">
+                <h2 class="modal-title fs-5" id="sensor-settings-title">
+                  Настройка датчика
+                </h2>
+                <button
+                  type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="Закрыть"
+                ></button>
+              </div>
+              <div class="modal-body">
+                <div class="mb-3">
+                  <label for="sensor-hardware-id" class="form-label">
+                    Hardware ID
+                  </label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="sensor-hardware-id"
+                    readonly
+                  />
+                </div>
+                <div>
+                  <label for="sensor-name" class="form-label">Название</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="sensor-name"
+                    autocomplete="off"
+                    required
+                  />
+                  <div id="sensor-settings-error" class="invalid-feedback"></div>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  data-bs-dismiss="modal"
+                >
+                  Отмена
+                </button>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -139,6 +227,22 @@
         minute: "2-digit",
         second: "2-digit",
       });
+      const sensorMetadata = new Map();
+      let latestSensors = [];
+
+      for (const card of document.querySelectorAll(".sensor-card")) {
+        sensorMetadata.set(card.dataset.sensorId, {
+          name: card.dataset.sensorName,
+          measurement_type: card.dataset.measurementType,
+          unit: card.dataset.unit,
+          enabled: card.dataset.enabled === "true",
+        });
+      }
+
+      function mergeSensorMetadata(sensor) {
+        const metadata = sensorMetadata.get(sensor.id);
+        return metadata ? { ...sensor, ...metadata } : sensor;
+      }
 
       function hasSuccessfulRead(sensor) {
         return (
@@ -160,6 +264,8 @@
             sensorCardTemplate.content.firstElementChild.cloneNode(true);
           const successfulRead = hasSuccessfulRead(sensor);
           const status = card.querySelector('[data-field="status"]');
+
+          card.dataset.sensorId = sensor.id;
 
           card.querySelector('[data-field="name"]').textContent = sensor.name;
           card.querySelector('[data-field="id"]').textContent = sensor.id;
@@ -204,7 +310,8 @@
             throw new Error("Unexpected status response format");
           }
 
-          renderSensors(sensors);
+          latestSensors = sensors.map(mergeSensorMetadata);
+          renderSensors(latestSensors);
           document.getElementById("status-error").classList.add("d-none");
         } catch (error) {
           console.error("Failed to load status:", error);
@@ -214,6 +321,119 @@
 
       loadStatus();
       setInterval(loadStatus, statusPollingInterval);
+
+      const sensorList = document.getElementById("sensor-list");
+      const settingsModalElement = document.getElementById(
+        "sensor-settings-modal",
+      );
+      const settingsModal = new bootstrap.Modal(settingsModalElement);
+      const settingsForm = document.getElementById("sensor-settings-form");
+      const hardwareIDInput = document.getElementById("sensor-hardware-id");
+      const nameInput = document.getElementById("sensor-name");
+      const settingsError = document.getElementById("sensor-settings-error");
+
+      function showSettingsError(message) {
+        settingsError.textContent = message;
+        nameInput.classList.add("is-invalid");
+      }
+
+      function clearSettingsError() {
+        settingsError.textContent = "";
+        nameInput.classList.remove("is-invalid");
+      }
+
+      function updateRenderedSensorName(hardwareID, name) {
+        for (const card of sensorList.querySelectorAll(".sensor-card")) {
+          if (card.dataset.sensorId !== hardwareID) continue;
+
+          card.querySelector('[data-field="name"], .card-title').textContent =
+            name;
+          card.dataset.sensorName = name;
+          return;
+        }
+      }
+
+      sensorList.addEventListener("click", (event) => {
+        const button = event.target.closest('[data-action="configure-sensor"]');
+        if (!button) return;
+
+        const card = button.closest(".sensor-card");
+        const hardwareID = card.dataset.sensorId;
+        const metadata = sensorMetadata.get(hardwareID);
+        if (!metadata) return;
+
+        hardwareIDInput.value = hardwareID;
+        nameInput.value = metadata.name;
+        clearSettingsError();
+        settingsModal.show();
+      });
+
+      settingsModalElement.addEventListener("shown.bs.modal", () => {
+        nameInput.focus();
+        nameInput.select();
+      });
+
+      settingsForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        clearSettingsError();
+
+        const hardwareID = hardwareIDInput.value;
+        const metadata = sensorMetadata.get(hardwareID);
+        const name = nameInput.value.trim();
+
+        if (!name) {
+          showSettingsError("Введите название датчика.");
+          return;
+        }
+
+        if (!metadata) {
+          showSettingsError("Не удалось найти данные датчика.");
+          return;
+        }
+
+        const submitButton = settingsForm.querySelector('[type="submit"]');
+        submitButton.disabled = true;
+
+        try {
+          const response = await fetch(
+            `/api/sensors/${encodeURIComponent(hardwareID)}`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name,
+                measurement_type: metadata.measurement_type,
+                unit: metadata.unit,
+                enabled: metadata.enabled,
+              }),
+            },
+          );
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
+          const updatedSensor = await response.json();
+          sensorMetadata.set(hardwareID, {
+            name: updatedSensor.name,
+            measurement_type: updatedSensor.measurement_type,
+            unit: updatedSensor.unit,
+            enabled: updatedSensor.enabled,
+          });
+          latestSensors = latestSensors.map(mergeSensorMetadata);
+          if (latestSensors.length > 0) {
+            renderSensors(latestSensors);
+          } else {
+            updateRenderedSensorName(hardwareID, updatedSensor.name);
+          }
+          settingsModal.hide();
+        } catch (error) {
+          console.error("Failed to update sensor:", error);
+          showSettingsError("Не удалось сохранить название. Попробуйте ещё раз.");
+        } finally {
+          submitButton.disabled = false;
+        }
+      });
     </script>
   </body>
 </html>

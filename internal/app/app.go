@@ -28,9 +28,12 @@ var indexTemplate = template.Must(
 )
 
 type sensorView struct {
-	ID          string
-	Name        string
-	Temperature float64
+	ID              string
+	Name            string
+	MeasurementType string
+	Unit            string
+	Enabled         bool
+	Temperature     float64
 }
 
 type sensorStatusResponse struct {
@@ -191,7 +194,13 @@ func syncDiscoveredSensors(
 			}
 		}
 
-		appState.UpdateSensorMetadata(persistedSensor.HardwareID, persistedSensor.Name, persistedSensor.Enabled)
+		appState.UpdateSensorMetadata(
+			persistedSensor.HardwareID,
+			persistedSensor.Name,
+			persistedSensor.MeasurementType,
+			persistedSensor.Unit,
+			persistedSensor.Enabled,
+		)
 	}
 
 	return nil
@@ -206,9 +215,12 @@ func handleIndex(w http.ResponseWriter, r *http.Request, appState *AppState) {
 
 	for sensorID, discoveredSensor := range sensors {
 		data.Sensors = append(data.Sensors, sensorView{
-			ID:          sensorID,
-			Name:        discoveredSensor.name,
-			Temperature: discoveredSensor.temperature,
+			ID:              sensorID,
+			Name:            discoveredSensor.name,
+			MeasurementType: discoveredSensor.measurementType,
+			Unit:            discoveredSensor.unit,
+			Enabled:         discoveredSensor.enabled,
+			Temperature:     discoveredSensor.temperature,
 		})
 	}
 
@@ -312,7 +324,13 @@ func handleUpdateSensor(
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	appState.UpdateSensorMetadata(hardwareID, sensor.Name, sensor.Enabled)
+	appState.UpdateSensorMetadata(
+		hardwareID,
+		sensor.Name,
+		sensor.MeasurementType,
+		sensor.Unit,
+		sensor.Enabled,
+	)
 
 	response := updateSensorResponse{
 		HardwareID:      sensor.HardwareID,
