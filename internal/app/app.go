@@ -23,6 +23,9 @@ import (
 //go:embed templates/index.html
 var indexHTML string
 
+//go:embed templates/icon.png
+var iconPNG []byte
+
 var indexTemplate = template.Must(
 	template.New("index").Parse(indexHTML),
 )
@@ -89,6 +92,13 @@ func Run(sensorRegistry registry.SensorRegistry, sensorRepository storage.Sensor
 	go runSensorPolling(appCtx, appState, sensorRegistry)
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /icon.png", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		if _, err := w.Write(iconPNG); err != nil {
+			fmt.Printf("Error serving icon: %v\n", err)
+		}
+	})
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		handleIndex(w, r, appState)
 	})
