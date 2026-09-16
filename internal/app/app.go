@@ -110,6 +110,26 @@ type createRunRequest struct {
 	SensorHardwareIDs []string `json:"sensor_hardware_ids"`
 }
 
+type runMeasurementsResponse struct {
+	RunID   int                             `json:"run_id"`
+	From    time.Time                       `json:"from"`
+	To      time.Time                       `json:"to"`
+	Sensors []runSensorMeasurementsResponse `json:"sensors"`
+}
+
+type runSensorMeasurementsResponse struct {
+	HardwareID      string                     `json:"hardware_id"`
+	Name            string                     `json:"name"`
+	MeasurementType string                     `json:"measurement_type"`
+	Unit            string                     `json:"unit"`
+	Measurements    []measurementPointResponse `json:"measurements"`
+}
+
+type measurementPointResponse struct {
+	MeasuredAt time.Time `json:"measured_at"`
+	Value      float64   `json:"value"`
+}
+
 func Run(
 	sensorRegistry registry.SensorRegistry,
 	sensorRepository storage.SensorRepository,
@@ -182,6 +202,9 @@ func Run(
 	mux.HandleFunc("POST /api/runs", func(w http.ResponseWriter, r *http.Request) {
 		handleCreateRun(w, r, appState, runRepository)
 	})
+	mux.HandleFunc("GET /api/runs/{id}/measurements", func(w http.ResponseWriter, r *http.Request) {
+		handleRunMeasurements(w, r, measurementRepository)
+	})
 	mux.HandleFunc("POST /api/runs/{id}/stop", func(w http.ResponseWriter, r *http.Request) {
 		handleStopRun(w, r, appState, runRepository)
 	})
@@ -234,6 +257,92 @@ func Run(
 	}
 
 	fmt.Println("Server stopped")
+}
+
+func handleRunMeasurements(
+	w http.ResponseWriter,
+	r *http.Request,
+	measurementRepository storage.MeasurementRepository,
+) {
+	runID, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || runID <= 0 {
+		http.Error(w, "invalid run id", http.StatusBadRequest)
+		return
+	}
+
+	from, err := parseOptionalRFC3339(r.URL.Query().Get("from"))
+	if err != nil {
+		http.Error(w, "invalid from timestamp", http.StatusBadRequest)
+		return
+	}
+
+	to, err := parseOptionalRFC3339(r.URL.Query().Get("to"))
+	if err != nil {
+		http.Error(w, "invalid to timestamp", http.StatusBadRequest)
+		return
+	}
+
+	if from != nil && to != nil && !from.Before(*to) {
+		http.Error(w, "from must be before to", http.StatusBadRequest)
+		return
+	}
+
+	measurements, err := measurementRepository.RunMeasurements(r.Context(), runID, from, to)
+	if errors.Is(err, storage.ErrRunNotFound) {
+		http.Error(w, "run not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if !measurements.From.Before(measurements.To) {
+		http.Error(w, "from must be before to", http.StatusBadRequest)
+		return
+	}
+
+	response := runMeasurementsResponse{
+		RunID:   measurements.RunID,
+		From:    measurements.From.UTC(),
+		To:      measurements.To.UTC(),
+		Sensors: make([]runSensorMeasurementsResponse, 0, len(measurements.Sensors)),
+	}
+	for _, sensor := range measurements.Sensors {
+		sensorResponse := runSensorMeasurementsResponse{
+			HardwareID:      sensor.HardwareID,
+			Name:            sensor.Name,
+			MeasurementType: sensor.MeasurementType,
+			Unit:            sensor.Unit,
+			Measurements:    make([]measurementPointResponse, 0, len(sensor.Measurements)),
+		}
+		for _, measurement := range sensor.Measurements {
+			sensorResponse.Measurements = append(sensorResponse.Measurements, measurementPointResponse{
+				MeasuredAt: measurement.MeasuredAt.UTC(),
+				Value:      measurement.Value,
+			})
+		}
+		response.Sensors = append(response.Sensors, sensorResponse)
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		fmt.Printf("Encode run measurements response: %v\n", err)
+	}
+}
+
+func parseOptionalRFC3339(value string) (*time.Time, error) {
+	if value == "" {
+		return nil, nil
+	}
+
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return nil, err
+	}
+
+	parsed = parsed.UTC()
+	return &parsed, nil
 }
 
 func restoreActiveRun(
