@@ -133,6 +133,9 @@ func Run(
 	mux.HandleFunc("PUT /api/sensors/{hardwareID}", func(w http.ResponseWriter, r *http.Request) {
 		handleUpdateSensor(w, r, appState, sensorRepository)
 	})
+	mux.HandleFunc("GET /api/batches", func(w http.ResponseWriter, r *http.Request) {
+		handleBatches(w, r, batchRepository)
+	})
 	mux.HandleFunc("POST /api/batches", func(w http.ResponseWriter, r *http.Request) {
 		handleCreateBatch(w, r, batchRepository)
 	})
@@ -387,6 +390,33 @@ func handleUpdateSensor(
 	}
 }
 
+func handleBatches(w http.ResponseWriter, r *http.Request, batchRepository storage.BatchRepository) {
+	batches, err := batchRepository.All(r.Context())
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var response = make([]batchResponse, 0, len(batches))
+
+	for _, batch := range batches {
+		response = append(response, batchResponse{
+			ID:        batch.ID,
+			Name:      batch.Name,
+			Comment:   batch.Comment,
+			CreatedAt: batch.CreatedAt,
+			UpdatedAt: batch.UpdatedAt,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
 func handleCreateBatch(w http.ResponseWriter, r *http.Request, batchRepository storage.BatchRepository) {
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 
@@ -406,8 +436,8 @@ func handleCreateBatch(w http.ResponseWriter, r *http.Request, batchRepository s
 	}
 
 	batch, err := batchRepository.Create(r.Context(), storage.Batch{
-		Name:    *request.Name,
-		Comment: request.Comment,
+		Name:    strings.TrimSpace(*request.Name),
+		Comment: strings.TrimSpace(request.Comment),
 	})
 
 	if err != nil {
