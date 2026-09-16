@@ -79,6 +79,7 @@ func main() {
 	}
 
 	sensorRepository := storage.NewSQLiteSensorRepository(db)
+	batchRepository := storage.NewSQLiteBatchRepository(db)
 
-	app.Run(sensorRegistry, sensorRepository)
+	app.Run(sensorRegistry, sensorRepository, batchRepository)
 }

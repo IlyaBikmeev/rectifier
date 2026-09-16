@@ -67,11 +67,28 @@ type updateSensorResponse struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 }
 
+type createBatchRequest struct {
+	Name    *string `json:"name"`
+	Comment string  `json:"comment"`
+}
+
+type batchResponse struct {
+	ID        int       `json:"id"`
+	Name      string    `json:"name"`
+	Comment   string    `json:"comment"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type indexView struct {
 	Sensors []sensorView
 }
 
-func Run(sensorRegistry registry.SensorRegistry, sensorRepository storage.SensorRepository) {
+func Run(
+	sensorRegistry registry.SensorRegistry,
+	sensorRepository storage.SensorRepository,
+	batchRepository storage.BatchRepository,
+) {
 	appState := NewAppState()
 	appCtx, cancelApp := context.WithCancel(context.Background())
 	defer cancelApp()
@@ -115,6 +132,9 @@ func Run(sensorRegistry registry.SensorRegistry, sensorRepository storage.Sensor
 	})
 	mux.HandleFunc("PUT /api/sensors/{hardwareID}", func(w http.ResponseWriter, r *http.Request) {
 		handleUpdateSensor(w, r, appState, sensorRepository)
+	})
+	mux.HandleFunc("POST /api/batches", func(w http.ResponseWriter, r *http.Request) {
+		handleCreateBatch(w, r, batchRepository)
 	})
 	mux.Handle("GET /metrics", promhttp.Handler())
 
@@ -361,6 +381,50 @@ func handleUpdateSensor(
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func handleCreateBatch(w http.ResponseWriter, r *http.Request, batchRepository storage.BatchRepository) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+
+	var request createBatchRequest
+
+	if err := decoder.Decode(&request); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if request.Name == nil || strings.TrimSpace(*request.Name) == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+
+	batch, err := batchRepository.Create(r.Context(), storage.Batch{
+		Name:    *request.Name,
+		Comment: request.Comment,
+	})
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	response := batchResponse{
+		ID:        batch.ID,
+		Name:      batch.Name,
+		Comment:   batch.Comment,
+		CreatedAt: batch.CreatedAt,
+		UpdatedAt: batch.UpdatedAt,
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusCreated)
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
