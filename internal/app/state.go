@@ -11,10 +11,27 @@ type AppState struct {
 	sensors map[string]SensorState
 }
 
+type ProcessStatus string
+
+const (
+	ProcessStatusStopped  ProcessStatus = "STOPPED"
+	ProcessStatusStarting ProcessStatus = "STARTING"
+	ProcessStatusRunning  ProcessStatus = "RUNNING"
+	ProcessStatusStopping ProcessStatus = "STOPPING"
+)
+
 type ProcessState struct {
-	status       string // "STOPPED", "RUNNING", "ERROR"
-	currentRunID string
-	startedAt    time.Time
+	status    ProcessStatus
+	activeRun *ActiveRun
+}
+
+type ActiveRun struct {
+	id                int
+	batchID           int
+	batchName         string
+	runType           string
+	startedAt         time.Time
+	sensorHardwareIDs []string
 }
 
 type SensorState struct {
@@ -31,7 +48,7 @@ func NewAppState() *AppState {
 	return &AppState{
 		mutex: sync.RWMutex{},
 		process: ProcessState{
-			status: "STOPPED",
+			status: ProcessStatusStopped,
 		},
 		sensors: make(map[string]SensorState),
 	}
@@ -47,6 +64,31 @@ func (appState *AppState) SensorsSnapshot() map[string]SensorState {
 	}
 
 	return snapshot
+}
+
+func (appState *AppState) ProcessSnapshot() ProcessState {
+	appState.mutex.RLock()
+	defer appState.mutex.RUnlock()
+
+	var activeRun *ActiveRun
+
+	if appState.process.activeRun == nil {
+		activeRun = nil
+	} else {
+		activeRun = &ActiveRun{
+			id:                appState.process.activeRun.id,
+			batchID:           appState.process.activeRun.batchID,
+			batchName:         appState.process.activeRun.batchName,
+			runType:           appState.process.activeRun.runType,
+			startedAt:         appState.process.activeRun.startedAt,
+			sensorHardwareIDs: append([]string(nil), appState.process.activeRun.sensorHardwareIDs...),
+		}
+	}
+
+	return ProcessState{
+		status:    appState.process.status,
+		activeRun: activeRun,
+	}
 }
 
 func (appState *AppState) SensorSnapshot(id string) (SensorState, bool) {
@@ -84,5 +126,15 @@ func (appState *AppState) UpdateSensorMetadata(
 			unit:            unit,
 			enabled:         enabled,
 		}
+	}
+}
+
+func (appState *AppState) RestoreActiveRun(run ActiveRun) {
+	appState.mutex.Lock()
+	defer appState.mutex.Unlock()
+
+	appState.process = ProcessState{
+		status:    ProcessStatusRunning,
+		activeRun: &run,
 	}
 }

@@ -84,10 +84,30 @@ type indexView struct {
 	Sensors []sensorView
 }
 
+type processResponse struct {
+	Status     string             `json:"status"`
+	ServerTime time.Time          `json:"server_time"`
+	ActiveRun  *activeRunResponse `json:"active_run"`
+}
+
+type activeRunResponse struct {
+	ID          int                    `json:"id"`
+	Batch       activeRunBatchResponse `json:"batch"`
+	Type        string                 `json:"type"`
+	StartedAt   time.Time              `json:"started_at"`
+	SensorCount int                    `json:"sensor_count"`
+}
+
+type activeRunBatchResponse struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 func Run(
 	sensorRegistry registry.SensorRegistry,
 	sensorRepository storage.SensorRepository,
 	batchRepository storage.BatchRepository,
+	runRepository storage.RunRepository,
 ) {
 	appState := NewAppState()
 	appCtx, cancelApp := context.WithCancel(context.Background())
@@ -105,6 +125,15 @@ func Run(
 		sensorRepository,
 	); err != nil {
 		fmt.Printf("Sync discovered sensors: %v\n", err)
+		return
+	}
+
+	if err := restoreActiveRun(
+		appCtx,
+		appState,
+		runRepository,
+	); err != nil {
+		fmt.Printf("Restore active run: %v\n", err)
 		return
 	}
 
@@ -126,6 +155,9 @@ func Run(
 	})
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		handleIndex(w, r, appState)
+	})
+	mux.HandleFunc("GET /api/process", func(w http.ResponseWriter, r *http.Request) {
+		handleProcess(w, r, appState)
 	})
 	mux.HandleFunc("GET /api/status", func(w http.ResponseWriter, r *http.Request) {
 		handleStatus(w, r, appState)
@@ -189,6 +221,32 @@ func Run(
 	fmt.Println("Server stopped")
 }
 
+func restoreActiveRun(
+	ctx context.Context,
+	appState *AppState,
+	runRepository storage.RunRepository,
+) error {
+	run, err := runRepository.Active(ctx)
+	if err != nil {
+		return fmt.Errorf("select active run: %w", err)
+	}
+
+	if run == nil {
+		return nil
+	}
+
+	appState.RestoreActiveRun(ActiveRun{
+		id:                run.ID,
+		batchID:           run.BatchID,
+		batchName:         run.BatchName,
+		runType:           run.Type,
+		startedAt:         run.StartedAt,
+		sensorHardwareIDs: run.SensorHardwareIDs,
+	})
+
+	return nil
+}
+
 func syncDiscoveredSensors(
 	ctx context.Context,
 	appState *AppState,
@@ -245,6 +303,34 @@ func syncDiscoveredSensors(
 	}
 
 	return nil
+}
+
+func handleProcess(w http.ResponseWriter, r *http.Request, appState *AppState) {
+	process := appState.ProcessSnapshot()
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	response := processResponse{
+		Status:     string(process.status),
+		ServerTime: time.Now().UTC(),
+	}
+
+	if process.activeRun != nil {
+		response.ActiveRun = &activeRunResponse{
+			ID: process.activeRun.id,
+			Batch: activeRunBatchResponse{
+				ID:   process.activeRun.batchID,
+				Name: process.activeRun.batchName,
+			},
+			Type:        process.activeRun.runType,
+			StartedAt:   process.activeRun.startedAt,
+			SensorCount: len(process.activeRun.sensorHardwareIDs),
+		}
+	}
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request, appState *AppState) {

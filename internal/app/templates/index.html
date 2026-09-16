@@ -645,6 +645,9 @@
       const processCard = document.getElementById("process-card");
       const processStopped = document.getElementById("process-stopped");
       const processRunning = document.getElementById("process-running");
+      const processSyncWarning = document.getElementById(
+        "process-sync-warning",
+      );
       const startRunButton = document.getElementById("open-start-run");
       const stopRunButton = document.getElementById("stop-run-button");
       let confirmedProcess = { status: "STOPPED", active_run: null };
@@ -658,6 +661,18 @@
         return `${hours}:${minutes}:${seconds}`;
       }
 
+      function formatSensorCount(count) {
+        const lastTwoDigits = count % 100;
+        const lastDigit = count % 10;
+
+        if (lastTwoDigits >= 11 && lastTwoDigits <= 14) {
+          return `${count} датчиков`;
+        }
+        if (lastDigit === 1) return `${count} датчик`;
+        if (lastDigit >= 2 && lastDigit <= 4) return `${count} датчика`;
+        return `${count} датчиков`;
+      }
+
       function updateProcessTimer() {
         if (confirmedProcess.status !== "RUNNING" || !confirmedProcess.active_run) return;
         const duration = formatDuration(
@@ -667,8 +682,6 @@
         document.querySelector("[data-stop-duration]").textContent = duration;
       }
 
-      // The current backend has no Run endpoints yet. This renderer keeps the
-      // future states explicit without pretending that a recording was started.
       function renderProcess(process) {
         const status = process.status;
         const isStopped = status === "STOPPED";
@@ -726,13 +739,44 @@
           document.getElementById("active-run-started").textContent =
             `Старт ${lastReadFormatter.format(new Date(run.started_at))}`;
           document.getElementById("active-run-sensors").textContent =
-            `${run.sensor_count} датчиков`;
+            formatSensorCount(run.sensor_count);
           document.querySelector("[data-stop-batch]").textContent = run.batch.name;
           updateProcessTimer();
         }
       }
 
+      async function loadProcess() {
+        try {
+          const response = await fetch("/api/process", { cache: "no-store" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+          const process = await response.json();
+          const supportedStatuses = ["STOPPED", "STARTING", "RUNNING", "STOPPING"];
+          if (!supportedStatuses.includes(process.status)) {
+            throw new Error("Unexpected process status");
+          }
+          if (
+            (process.status === "RUNNING" || process.status === "STOPPING") &&
+            !process.active_run
+          ) {
+            throw new Error("Active run is missing");
+          }
+
+          renderProcess(process);
+          processSyncWarning.classList.add("d-none");
+        } catch (error) {
+          console.error("Failed to load process:", error);
+          processSyncWarning.classList.remove("d-none");
+          startRunButton.disabled = true;
+          stopRunButton.disabled = true;
+        }
+      }
+
       renderProcess({ status: "STOPPED", active_run: null });
+      startRunButton.disabled = true;
+      stopRunButton.disabled = true;
+      loadProcess();
+      setInterval(loadProcess, statusPollingInterval);
       setInterval(updateProcessTimer, 1000);
 
       for (const card of document.querySelectorAll(".sensor-card")) {
