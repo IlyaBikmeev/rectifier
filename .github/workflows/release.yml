@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      - name: Check installer syntax
+        run: sh -n packaging/install.sh packaging/install-release.sh
+
+      - name: Build archive
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: arm64
+        run: |
+          set -eu
+          version="${GITHUB_REF_NAME#v}"
+          archive="rectifier_${version}_linux_arm64.tar.gz"
+          stage="$(mktemp -d)"
+          go build -trimpath -ldflags="-s -w" -o "$stage/rectifier" ./cmd/rectifier
+          install -m 0755 packaging/install.sh "$stage/install.sh"
+          install -m 0644 packaging/rectifier.service "$stage/rectifier.service"
+          tar -C "$stage" -czf "$archive" rectifier install.sh rectifier.service
+          sha256sum "$archive" > "$archive.sha256"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          install -m 0755 packaging/install-release.sh install-release.sh
+          gh release create "$GITHUB_REF_NAME" --generate-notes \
+            install-release.sh \
+            rectifier_*_linux_arm64.tar.gz \
+            rectifier_*_linux_arm64.tar.gz.sha256

@@ -1,0 +1,20 @@
+[Unit]
+Description=Rectifier monitoring service
+After=network.target
+
+[Service]
+Type=simple
+User=rectifier
+Group=rectifier
+WorkingDirectory=/var/lib/rectifier
+ExecStart=/usr/local/bin/rectifier -sensor-mode=ds18b20 -db-path=/var/lib/rectifier/rectifier.db
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/rectifier
+
+[Install]
+WantedBy=multi-user.target
