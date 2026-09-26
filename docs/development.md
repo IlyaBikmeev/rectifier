@@ -68,6 +68,7 @@ SQLite — источник истины для длительного сост�
 | GET | `/api/runs/{id}/measurements` | Измерения и границы графика |
 | GET | `/api/runs/{id}/events` | Ручные метки Run в хронологическом порядке |
 | POST | `/api/runs/{id}/events` | Создание ручной метки Run |
+| DELETE | `/api/events/{eventID}` | Удаление ручной метки Run |
 | GET | `/metrics` | Prometheus-совместимые метрики |
 
 `GET /api/batches` без query-параметров сохраняет полный список партий для
@@ -88,6 +89,10 @@ GET /api/batches?include=runs&limit=10&offset=0
 `occurred_at` repository назначает текущее серверное время. Явное время должно
 попадать между `started_at` и текущим временем активного Run либо между
 `started_at` и `stopped_at` завершённого Run.
+
+`DELETE /api/events/{eventID}` удаляет событие по его глобально уникальному
+идентификатору. Успешный ответ имеет статус `204`, неизвестная метка возвращает
+`404`.
 
 ## Миграции и проверки
 

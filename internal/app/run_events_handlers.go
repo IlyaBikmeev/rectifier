@@ -130,3 +130,23 @@ func handleGetEvents(w http.ResponseWriter, r *http.Request, runEventRepository 
 		fmt.Printf("Encode get events response: %v\n", err)
 	}
 }
+
+func handleDeleteEvent(w http.ResponseWriter, r *http.Request, runEventRepository storage.RunEventRepository) {
+	eventID, err := strconv.Atoi(r.PathValue("eventID"))
+	if err != nil || eventID <= 0 {
+		http.Error(w, "invalid event id", http.StatusBadRequest)
+		return
+	}
+
+	if err := runEventRepository.Delete(r.Context(), eventID); err != nil {
+		if errors.Is(err, storage.ErrRunEventNotFound) {
+			http.Error(w, "run event not found", http.StatusNotFound)
+		} else {
+			fmt.Printf("handle delete event: %v\n", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

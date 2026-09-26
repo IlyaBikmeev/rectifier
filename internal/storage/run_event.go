@@ -11,6 +11,7 @@ import (
 type RunEventRepository interface {
 	Create(ctx context.Context, event RunEvent) (RunEvent, error)
 	All(ctx context.Context, runID int) ([]RunEvent, error)
+	Delete(ctx context.Context, eventID int) error
 }
 
 type RunEvent struct {
@@ -21,7 +22,10 @@ type RunEvent struct {
 	CreatedAt  time.Time
 }
 
-var ErrRunEventTimeOutOfRange = errors.New("run event time out of range")
+var (
+	ErrRunEventNotFound       = errors.New("run event not found")
+	ErrRunEventTimeOutOfRange = errors.New("run event time out of range")
+)
 
 type SQLiteRunEventRepository struct {
 	db *sql.DB
@@ -135,4 +139,25 @@ func (s *SQLiteRunEventRepository) All(ctx context.Context, runID int) ([]RunEve
 	}
 
 	return runEvents, nil
+}
+
+func (s *SQLiteRunEventRepository) Delete(ctx context.Context, eventID int) error {
+	result, err := s.db.ExecContext(
+		ctx,
+		"DELETE FROM run_events WHERE id = ?",
+		eventID,
+	)
+	if err != nil {
+		return fmt.Errorf("delete run event %d: %w", eventID, err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("get affected rows for run event %d: %w", eventID, err)
+	}
+	if affected != 1 {
+		return ErrRunEventNotFound
+	}
+
+	return nil
 }
