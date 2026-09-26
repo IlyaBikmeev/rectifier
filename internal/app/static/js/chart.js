@@ -1,13 +1,69 @@
 import { getRunMeasurements } from "./api.js";
 
 const colors = [
-  "#0d6efd",
-  "#dc3545",
-  "#198754",
-  "#fd7e14",
-  "#6f42c1",
-  "#0aa2c0",
+  "#3b78c8",
+  "#4c9a5f",
+  "#c58b20",
+  "#d97732",
+  "#8a60b0",
+  "#2a98a6",
+  "#6675b8",
+  "#758f45",
 ];
+
+function paletteIndexForHardwareID(hardwareID) {
+  let hash = 2166136261;
+  for (const character of hardwareID) {
+    hash ^= character.codePointAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) % colors.length;
+}
+
+function colorsByHardwareID(sensors) {
+  const hardwareIDs = [...new Set(sensors.map((sensor) => sensor.hardware_id))]
+    .sort();
+  const baseIndexes = new Map(
+    hardwareIDs.map((hardwareID) => [
+      hardwareID,
+      paletteIndexForHardwareID(hardwareID),
+    ]),
+  );
+  const reservedIndexes = new Set(baseIndexes.values());
+  const usedIndexes = new Set();
+  const result = new Map();
+
+  for (const hardwareID of hardwareIDs) {
+    const baseIndex = baseIndexes.get(hardwareID);
+    let paletteIndex = baseIndex;
+
+    if (usedIndexes.has(paletteIndex) && usedIndexes.size < colors.length) {
+      for (let offset = 1; offset < colors.length; offset += 1) {
+        const candidate = (baseIndex + offset) % colors.length;
+        if (!usedIndexes.has(candidate) && !reservedIndexes.has(candidate)) {
+          paletteIndex = candidate;
+          break;
+        }
+      }
+    }
+
+    if (usedIndexes.has(paletteIndex) && usedIndexes.size < colors.length) {
+      for (let offset = 1; offset < colors.length; offset += 1) {
+        const candidate = (baseIndex + offset) % colors.length;
+        if (!usedIndexes.has(candidate)) {
+          paletteIndex = candidate;
+          break;
+        }
+      }
+    }
+
+    usedIndexes.add(paletteIndex);
+    result.set(hardwareID, colors[paletteIndex]);
+  }
+
+  return result;
+}
+
 const absoluteTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
   day: "2-digit",
   month: "2-digit",
@@ -150,7 +206,8 @@ export function createRunChart({
     }
 
     let pointCount = 0;
-    const datasets = payload.sensors.map((sensor, index) => {
+    const sensorColors = colorsByHardwareID(payload.sensors);
+    const datasets = payload.sensors.map((sensor) => {
       if (!Array.isArray(sensor.measurements)) {
         throw new Error("Unexpected sensor measurements");
       }
@@ -169,14 +226,14 @@ export function createRunChart({
         };
       });
       pointCount += data.length;
-      const paletteIndex = index % colors.length;
+      const color = sensorColors.get(sensor.hardware_id);
       return {
         label: sensor.name,
         sensorHardwareID: sensor.hardware_id,
         data,
         parsing: false,
-        borderColor: colors[paletteIndex],
-        backgroundColor: colors[paletteIndex],
+        borderColor: color,
+        backgroundColor: color,
         borderWidth: 1.5,
         pointRadius: 0,
         pointHoverRadius: 4,
