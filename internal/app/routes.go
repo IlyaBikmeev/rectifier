@@ -12,7 +12,9 @@ func newRouter(
 	sensorRepository storage.SensorRepository,
 	batchRepository storage.BatchRepository,
 	runRepository storage.RunRepository,
-	measurementRepository storage.MeasurementRepository) http.Handler {
+	measurementRepository storage.MeasurementRepository,
+	runEventRepository storage.RunEventRepository,
+) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /static/", handleStatic)
@@ -43,6 +45,9 @@ func newRouter(
 	})
 	mux.HandleFunc("POST /api/runs/{id}/stop", func(w http.ResponseWriter, r *http.Request) {
 		handleStopRun(w, r, appState, runRepository)
+	})
+	mux.HandleFunc("POST /api/runs/{id}/events", func(w http.ResponseWriter, r *http.Request) {
+		handleCreateEvent(w, r, runEventRepository)
 	})
 
 	mux.Handle("GET /metrics", promhttp.Handler())

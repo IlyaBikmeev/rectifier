@@ -19,6 +19,7 @@ func Run(
 	batchRepository storage.BatchRepository,
 	runRepository storage.RunRepository,
 	measurementRepository storage.MeasurementRepository,
+	runEventRepository storage.RunEventRepository,
 ) {
 	appState := NewAppState()
 	appCtx, cancelApp := context.WithCancel(context.Background())
@@ -57,6 +58,7 @@ func Run(
 		batchRepository,
 		runRepository,
 		measurementRepository,
+		runEventRepository,
 	)
 
 	server := &http.Server{
