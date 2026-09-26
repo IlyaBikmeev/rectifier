@@ -1,0 +1,3 @@
+.run-chart-container {
+  height: clamp(18rem, 40vw, 26rem);
+}
