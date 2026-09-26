@@ -15,12 +15,12 @@ type createBatchRequest struct {
 }
 
 type batchResponse struct {
-	ID        int           `json:"id"`
-	Name      string        `json:"name"`
-	Comment   string        `json:"comment"`
-	CreatedAt time.Time     `json:"created_at"`
-	UpdatedAt time.Time     `json:"updated_at"`
-	Runs      []runResponse `json:"runs,omitempty"`
+	ID        int            `json:"id"`
+	Name      string         `json:"name"`
+	Comment   string         `json:"comment"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	Runs      *[]runResponse `json:"runs,omitempty"`
 }
 
 type runResponse struct {
@@ -80,14 +80,18 @@ func handleBatches(w http.ResponseWriter, r *http.Request, batchRepository stora
 	var response = make([]batchResponse, 0, len(batches))
 
 	for _, batch := range batches {
-		response = append(response, batchResponse{
+		batchItem := batchResponse{
 			ID:        batch.ID,
 			Name:      batch.Name,
 			Comment:   batch.Comment,
 			CreatedAt: batch.CreatedAt,
 			UpdatedAt: batch.UpdatedAt,
-			Runs:      mapRuns(batch.Runs),
-		})
+		}
+		if includeRuns {
+			runs := mapRuns(batch.Runs)
+			batchItem.Runs = &runs
+		}
+		response = append(response, batchItem)
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

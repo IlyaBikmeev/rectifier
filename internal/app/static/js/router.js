@@ -1,4 +1,8 @@
-export function initRouter({ routes, navigationElement }) {
+export function initRouter({
+  routes,
+  navigationElement,
+  onRouteChanged = () => {},
+}) {
   function renderRoute() {
     const route = routes.has(window.location.hash)
       ? window.location.hash
@@ -25,6 +29,8 @@ export function initRouter({ routes, navigationElement }) {
     if (navigationElement.classList.contains("show")) {
       window.bootstrap.Offcanvas.getOrCreateInstance(navigationElement).hide();
     }
+
+    onRouteChanged(route);
   }
 
   window.addEventListener("hashchange", renderRoute);

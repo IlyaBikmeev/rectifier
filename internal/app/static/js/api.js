@@ -24,8 +24,15 @@ export function getSensorStatus() {
   return requestJSON("/api/status", { cache: "no-store" });
 }
 
-export function getBatches() {
-  return requestJSON("/api/batches", { cache: "no-store" });
+export function getBatches({ includeRuns = false, limit, offset } = {}) {
+  const parameters = new URLSearchParams();
+  if (includeRuns) parameters.set("include", "runs");
+  if (limit !== undefined) parameters.set("limit", String(limit));
+  if (offset !== undefined) parameters.set("offset", String(offset));
+
+  const query = parameters.toString();
+  const url = query === "" ? "/api/batches" : `/api/batches?${query}`;
+  return requestJSON(url, { cache: "no-store" });
 }
 
 export function updateSensor(hardwareID, sensor) {

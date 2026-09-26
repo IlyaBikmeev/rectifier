@@ -664,13 +664,186 @@
       </section>
 
       <section id="history-view" class="d-none" aria-labelledby="history-title">
-        <h1 class="h2 mb-3" id="history-title">История перегонов</h1>
-        <div class="card shadow-sm">
-          <div class="card-body">
-            <p class="card-text text-secondary">
-              Локальная история будет доступна после реализации хранения Runs.
+        <div class="mb-4">
+          <div class="text-secondary small fw-semibold text-uppercase mb-1">
+            Журнал измерений
+          </div>
+          <h1 class="h2 mb-1" id="history-title">История перегонов</h1>
+          <p class="text-secondary mb-0">
+            Партии и сохранённые температурные графики
+          </p>
+        </div>
+
+        <div
+          id="history-loading"
+          class="d-flex align-items-center gap-2 text-secondary py-5"
+          role="status"
+        >
+          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+          Загружаем историю…
+        </div>
+
+        <div
+          id="history-error"
+          class="alert alert-warning d-none"
+          role="alert"
+          aria-live="assertive"
+        >
+          <p class="mb-2">Не удалось загрузить историю перегонов.</p>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-dark"
+            data-action="retry-history"
+          >
+            Повторить
+          </button>
+        </div>
+
+        <div id="history-empty" class="card shadow-sm d-none">
+          <div class="card-body text-center py-5">
+            <i
+              class="bi bi-journal-text fs-2 text-secondary d-block mb-2"
+              aria-hidden="true"
+            ></i>
+            <h2 class="h5">История пока пуста</h2>
+            <p class="text-secondary mb-3">
+              Создайте партию и начните первую запись на главной странице.
             </p>
-            <a class="btn btn-primary" href="#/">Вернуться на главную</a>
+            <a class="btn btn-success" href="#/">Перейти к записи</a>
+          </div>
+        </div>
+
+        <div
+          id="history-list"
+          class="d-grid gap-3 d-none"
+          aria-live="polite"
+        ></div>
+
+        <div id="history-pagination" class="d-none mt-4 text-center">
+          <div
+            id="history-page-error"
+            class="alert alert-warning d-none text-start"
+            role="alert"
+            aria-live="assertive"
+          >
+            <div
+              class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3"
+            >
+              <span>Не удалось загрузить следующую страницу.</span>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-dark flex-shrink-0"
+                data-action="retry-history-page"
+              >
+                Повторить
+              </button>
+            </div>
+          </div>
+          <button
+            id="history-more"
+            type="button"
+            class="btn btn-outline-primary px-4"
+            data-action="load-more-history"
+          >
+            <span data-label>Показать ещё</span>
+            <span
+              class="spinner-border spinner-border-sm ms-2 d-none"
+              data-spinner
+              aria-hidden="true"
+            ></span>
+          </button>
+        </div>
+
+        <template id="history-batch-template">
+          <article class="card shadow-sm">
+            <div
+              class="card-header bg-body d-flex flex-column flex-sm-row justify-content-between align-items-sm-baseline gap-1 gap-sm-3 py-3"
+            >
+              <h2 class="h5 mb-0" data-field="batch-name"></h2>
+              <time
+                class="small text-secondary flex-shrink-0"
+                data-field="batch-updated"
+              ></time>
+            </div>
+            <div class="list-group list-group-flush" data-field="runs"></div>
+          </article>
+        </template>
+
+        <template id="history-run-template">
+          <div class="list-group-item py-3" data-run-row>
+            <div
+              class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3"
+            >
+              <div>
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                  <span class="fw-semibold" data-field="run-type"></span>
+                  <span class="badge" data-field="run-status"></span>
+                  <span
+                    class="badge text-bg-success d-none"
+                    data-field="run-indicator"
+                  >
+                    <i class="bi bi-record-circle-fill me-1" aria-hidden="true"></i>
+                    Запись
+                  </span>
+                </div>
+                <div
+                  class="d-flex flex-column flex-md-row gap-1 gap-md-3 text-secondary small"
+                >
+                  <time data-field="run-started"></time>
+                  <span>
+                    Длительность
+                    <span class="font-monospace" data-field="run-duration"></span>
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-primary flex-shrink-0"
+                data-action="toggle-history-chart"
+                aria-expanded="false"
+              >
+                <i class="bi bi-graph-up me-1" aria-hidden="true"></i>
+                <span data-label>Показать график</span>
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <div
+          id="history-chart-panel"
+          class="d-none border-top mt-3 pt-3"
+        >
+          <div
+            id="history-chart-error"
+            class="alert alert-warning d-none py-2 mb-3"
+            role="alert"
+          >
+            Не удалось обновить график. Показаны последние полученные данные.
+          </div>
+          <div
+            id="history-chart-loading"
+            class="d-flex align-items-center gap-2 text-secondary py-4"
+            role="status"
+          >
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            Загружаем измерения…
+          </div>
+          <div
+            id="history-chart-empty"
+            class="d-none text-center text-secondary py-5"
+          >
+            <i class="bi bi-graph-up fs-2 d-block mb-2" aria-hidden="true"></i>
+            В этом перегоне нет измерений
+          </div>
+          <div
+            id="history-chart-container"
+            class="run-chart-container position-relative d-none"
+          >
+            <canvas
+              id="history-chart"
+              aria-label="Температуры выбранного перегона"
+              role="img"
+            ></canvas>
           </div>
         </div>
       </section>
