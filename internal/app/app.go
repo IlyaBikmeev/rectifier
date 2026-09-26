@@ -141,7 +141,7 @@ func Run(
 	appCtx, cancelApp := context.WithCancel(context.Background())
 	defer cancelApp()
 
-	if err := registerSensorMetrics(appState, sensorRegistry); err != nil {
+	if err := registerSensorMetrics(appState); err != nil {
 		fmt.Printf("Register sensor metrics: %v\n", err)
 		return
 	}

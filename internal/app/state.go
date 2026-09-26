@@ -91,17 +91,6 @@ func (appState *AppState) ProcessSnapshot() ProcessState {
 	}
 }
 
-func (appState *AppState) SensorSnapshot(id string) (SensorState, bool) {
-	appState.mutex.RLock()
-	defer appState.mutex.RUnlock()
-
-	if sensor, ok := appState.sensors[id]; ok && !sensor.lastSuccessfulRead.IsZero() {
-		return sensor, true
-	}
-
-	return SensorState{}, false
-}
-
 func (appState *AppState) UpdateSensorMetadata(
 	hardwareID string,
 	name string,

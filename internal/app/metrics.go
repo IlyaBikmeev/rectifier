@@ -3,39 +3,59 @@ package app
 import (
 	"fmt"
 	"math"
-	"rectifier/internal/registry"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func registerSensorMetrics(appState *AppState, sensorRegistry registry.SensorRegistry) error {
-	sensors, err := sensorRegistry.Sensors()
-	if err != nil {
-		return fmt.Errorf("get sensors: %w", err)
+type sensorCollector struct {
+	appState    *AppState
+	temperature *prometheus.Desc
+}
+
+var _ prometheus.Collector = (*sensorCollector)(nil)
+
+func newSensorCollector(appState *AppState) *sensorCollector {
+	return &sensorCollector{
+		appState: appState,
+		temperature: prometheus.NewDesc(
+			"rectifier_temperature_celsius",
+			"Current sensor temperature in Celsius",
+			[]string{"sensor_id", "sensor_name"},
+			nil,
+		),
 	}
+}
 
-	for _, temperatureSensor := range sensors {
-		metric := prometheus.NewGaugeFunc(
-			prometheus.GaugeOpts{
-				Name: "rectifier_temperature_celsius",
-				Help: "Current sensor temperature in Celsius",
-				ConstLabels: prometheus.Labels{
-					"sensor_id":   temperatureSensor.ID(),
-					"sensor_name": temperatureSensor.Name(),
-				},
-			},
-			func() float64 {
-				if sensor, ok := appState.SensorSnapshot(temperatureSensor.ID()); ok {
-					return sensor.temperature
-				}
+func (collector *sensorCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- collector.temperature
+}
 
-				return math.NaN()
-			},
-		)
+func (collector *sensorCollector) Collect(ch chan<- prometheus.Metric) {
+	sensors := collector.appState.SensorsSnapshot()
 
-		if err := prometheus.Register(metric); err != nil {
-			return fmt.Errorf("register metric for sensor %s: %w", temperatureSensor.ID(), err)
+	for sensorID, sensor := range sensors {
+		value := sensor.temperature
+
+		if sensor.lastSuccessfulRead.IsZero() {
+			value = math.NaN()
 		}
+
+		ch <- prometheus.MustNewConstMetric(
+			collector.temperature,
+			prometheus.GaugeValue,
+			value,
+			sensorID,
+			sensor.name,
+		)
 	}
+}
+
+func registerSensorMetrics(appState *AppState) error {
+	collector := newSensorCollector(appState)
+
+	if err := prometheus.Register(collector); err != nil {
+		return fmt.Errorf("register sensor collector: %w", err)
+	}
+
 	return nil
 }
