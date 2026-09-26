@@ -88,6 +88,14 @@ export function createRunEvent(runID, event) {
   });
 }
 
+export function updateRunEvent(eventID, patch) {
+  return requestJSON(`/api/events/${encodeURIComponent(eventID)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+}
+
 export function deleteRunEvent(eventID) {
   return requestJSON(
     `/api/events/${encodeURIComponent(eventID)}`,

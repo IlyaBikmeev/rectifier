@@ -269,6 +269,7 @@ export function createRunChart({
   canvas,
   selectionHint,
   markerDetails,
+  onEditMarker,
   onDeleteMarker,
 }) {
   let chart = null;
@@ -350,6 +351,22 @@ export function createRunChart({
     if (!chart) return;
     chart.$runMarkers = markers;
     chart.draw();
+  }
+
+  function replaceMarker(event) {
+    if (runID === null || runStartedAt === null) return false;
+    const [replacement] = normalizeEvents([event], runID, runStartedAt);
+    const index = markers.findIndex((marker) => marker.id === replacement.id);
+    if (index === -1) return false;
+    markers[index] = replacement;
+    markers.sort(
+      (left, right) => left.occurredAt - right.occurredAt || left.id - right.id,
+    );
+    if (chart) {
+      chart.$runMarkers = markers;
+      showMarkerDetails(replacement);
+    }
+    return true;
   }
 
   function setTemperatureInteractionEnabled(enabled) {
@@ -748,6 +765,11 @@ export function createRunChart({
       hideMarkerDetails();
       return;
     }
+    if (event.target.closest('[data-action="edit-marker"]')) {
+      const marker = chart?.$selectedRunMarker;
+      if (marker) onEditMarker(marker);
+      return;
+    }
     if (event.target.closest('[data-action="delete-marker"]')) {
       const marker = chart?.$selectedRunMarker;
       if (marker) onDeleteMarker(marker);
@@ -765,5 +787,6 @@ export function createRunChart({
     onAvailabilityChanged,
     getTimeBounds,
     deleteMarker,
+    replaceMarker,
   };
 }

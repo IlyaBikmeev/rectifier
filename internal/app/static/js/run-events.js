@@ -1,4 +1,4 @@
-import { createRunEvent, deleteRunEvent } from "./api.js";
+import { createRunEvent, deleteRunEvent, updateRunEvent } from "./api.js";
 
 const eventTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
   day: "2-digit",
@@ -24,6 +24,7 @@ export function initRunEvents() {
   const modalElement = document.getElementById("run-event-modal");
   const modal = window.bootstrap.Modal.getOrCreateInstance(modalElement);
   const form = document.getElementById("run-event-form");
+  const title = document.getElementById("run-event-title");
   const text = document.getElementById("run-event-text");
   const time = document.getElementById("run-event-time-description");
   const elapsed = document.getElementById("run-event-elapsed");
@@ -54,6 +55,7 @@ export function initRunEvents() {
   const deleteSubmit = document.getElementById("submit-delete-run-event");
 
   let target = null;
+  let editing = null;
   let occurredAt = null;
   let submitting = false;
   let choosingPoint = false;
@@ -89,7 +91,8 @@ export function initRunEvents() {
   }
 
   function update() {
-    const completed = target?.status === "STOPPED";
+    const isEditing = editing !== null;
+    const completed = !isEditing && target?.status === "STOPPED";
     const canPick = Boolean(target?.chart.canSelectPoint());
     const needsPoint = completed && occurredAt === null;
     const bounds = target?.chart.getTimeBounds();
@@ -108,10 +111,14 @@ export function initRunEvents() {
       occurredAt !== null && bounds
         ? `От старта ${formatDuration(occurredAtMilliseconds - bounds.from)}`
         : "";
+    const timeChanged = isEditing && occurredAt !== editing.occurredAt;
     resetTime.classList.toggle(
       "d-none",
-      completed || occurredAt === null,
+      isEditing ? !timeChanged : completed || occurredAt === null,
     );
+    resetTime.textContent = isEditing
+      ? "Вернуть исходное время"
+      : "Вернуть сейчас";
     resetTime.disabled = submitting;
     for (const button of adjustmentButtons) {
       const offset = Number(button.dataset.eventTimeOffset);
@@ -125,10 +132,14 @@ export function initRunEvents() {
     }
     pick.disabled = submitting || !canPick;
     pickUnavailable.classList.toggle("d-none", canPick);
-    submit.disabled = submitting || needsPoint;
+    const textChanged = isEditing && text.value.trim() !== editing.text;
+    submit.disabled =
+      submitting || needsPoint || (isEditing && !textChanged && !timeChanged);
     submit.innerHTML = submitting
-      ? '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Добавляем…'
-      : "Добавить";
+      ? `<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>${isEditing ? "Сохраняем…" : "Добавляем…"}`
+      : isEditing
+        ? "Сохранить"
+        : "Добавить";
     disabledReason.textContent = needsPoint
       ? "Для завершённого перегона сначала выберите время на графике."
       : "";
@@ -143,11 +154,33 @@ export function initRunEvents() {
   function open(nextTarget) {
     target?.chart.cancelPointSelection();
     target = nextTarget;
+    editing = null;
     occurredAt = null;
     choosingPoint = false;
     submitting = false;
     focusTextOnShow = true;
     form.reset();
+    title.textContent = "Новая метка";
+    text.classList.remove("is-invalid");
+    error.classList.add("d-none");
+    error.textContent = "";
+    update();
+    modal.show();
+  }
+
+  function openEdit(event, chart) {
+    if (submitting) return;
+    target?.chart.cancelPointSelection();
+    const originalTime = new Date(event.occurredAt).toISOString();
+    target = { chart };
+    editing = { id: event.id, text: event.text.trim(), occurredAt: originalTime };
+    occurredAt = originalTime;
+    choosingPoint = false;
+    submitting = false;
+    focusTextOnShow = true;
+    form.reset();
+    text.value = event.text;
+    title.textContent = "Изменить метку";
     text.classList.remove("is-invalid");
     error.classList.add("d-none");
     error.textContent = "";
@@ -185,8 +218,10 @@ export function initRunEvents() {
   });
 
   resetTime.addEventListener("click", () => {
-    if (submitting || target?.status !== "RUNNING") return;
-    occurredAt = null;
+    if (submitting) return;
+    if (editing) occurredAt = editing.occurredAt;
+    else if (target?.status === "RUNNING") occurredAt = null;
+    else return;
     update();
   });
 
@@ -197,29 +232,61 @@ export function initRunEvents() {
     const trimmedText = text.value.trim();
     text.classList.toggle("is-invalid", trimmedText.length === 0);
     if (trimmedText.length === 0 || trimmedText.length > 200) return;
-    if (target.status === "STOPPED" && occurredAt === null) return;
+    if (!editing && target.status === "STOPPED" && occurredAt === null) return;
+
+    const textChanged = editing && trimmedText !== editing.text;
+    const timeChanged = editing && occurredAt !== editing.occurredAt;
+    if (editing && !textChanged && !timeChanged) return;
 
     submitting = true;
     error.classList.add("d-none");
     update();
     try {
-      const payload = { text: trimmedText };
-      if (occurredAt !== null) payload.occurred_at = occurredAt;
-      await createRunEvent(target.runID, payload);
+      let updatedEvent = null;
+      if (editing) {
+        const patch = {};
+        if (textChanged) patch.text = trimmedText;
+        if (timeChanged) patch.occurred_at = occurredAt;
+        updatedEvent = await updateRunEvent(editing.id, patch);
+      } else {
+        const payload = { text: trimmedText };
+        if (occurredAt !== null) payload.occurred_at = occurredAt;
+        await createRunEvent(target.runID, payload);
+      }
       const completedTarget = target;
+      const wasEditing = editing !== null;
+      if (wasEditing) completedTarget.chart.replaceMarker(updatedEvent);
       target = null;
+      editing = null;
       occurredAt = null;
       submitting = false;
       modal.hide();
-      await completedTarget.chart.refresh();
-      showSuccess("Метка добавлена");
+      if (wasEditing) void completedTarget.chart.refresh();
+      else await completedTarget.chart.refresh();
+      showSuccess(wasEditing ? "Метка изменена" : "Метка добавлена");
     } catch (submitError) {
-      console.error("Failed to create run event:", submitError);
+      console.error(
+        editing
+          ? "Failed to update run event:"
+          : "Failed to create run event:",
+        submitError,
+      );
       submitting = false;
+      if (editing && submitError.status === 404) {
+        const staleTarget = target;
+        const staleEventID = editing.id;
+        target = null;
+        editing = null;
+        occurredAt = null;
+        staleTarget.chart.deleteMarker(staleEventID);
+        modal.hide();
+        showSuccess("Метка уже удалена");
+        return;
+      }
       error.textContent =
         submitError.status === 400
-          ? "Не удалось добавить метку: проверьте текст и выбранное время."
-          : "Не удалось добавить метку. Проверьте связь и попробуйте ещё раз.";
+          ? `Не удалось ${editing ? "изменить" : "добавить"} метку: проверьте текст и выбранное время.`
+          : `Не удалось ${editing ? "изменить" : "добавить"} метку. Проверьте связь и попробуйте ещё раз.`;
       error.classList.remove("d-none");
       update();
     }
@@ -227,6 +294,7 @@ export function initRunEvents() {
 
   text.addEventListener("input", () => {
     if (text.value.trim().length > 0) text.classList.remove("is-invalid");
+    update();
   });
   modalElement.addEventListener("shown.bs.modal", () => {
     if (!focusTextOnShow) return;
@@ -237,7 +305,10 @@ export function initRunEvents() {
     if (submitting) event.preventDefault();
   });
   modalElement.addEventListener("hidden.bs.modal", () => {
-    if (!choosingPoint && !submitting) target = null;
+    if (!choosingPoint && !submitting) {
+      target = null;
+      editing = null;
+    }
   });
 
   deleteForm.addEventListener("submit", async (submitEvent) => {
@@ -279,5 +350,5 @@ export function initRunEvents() {
     if (!deleting) deletion = null;
   });
 
-  return { open, openDelete };
+  return { open, openEdit, openDelete };
 }
