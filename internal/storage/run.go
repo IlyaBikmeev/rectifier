@@ -32,7 +32,7 @@ type Run struct {
 	BatchName         string
 	Type              string
 	StartedAt         time.Time
-	StoppedAt         time.Time
+	StoppedAt         *time.Time
 	Status            string
 	SensorHardwareIDs []string
 }
