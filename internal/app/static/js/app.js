@@ -3,12 +3,11 @@ import {
   createRun,
   getBatches,
   getProcess,
-  getSensorStatus,
   stopRun,
-  updateSensor,
 } from "./api.js";
 import { createRunChart } from "./chart.js";
 import { initRouter } from "./router.js";
+import { initSensors } from "./sensors.js";
 
 const routes = new Map([
   ["#/", document.getElementById("home-view")],
@@ -23,8 +22,6 @@ const lastReadFormatter = new Intl.DateTimeFormat("ru-RU", {
   minute: "2-digit",
   second: "2-digit",
 });
-const sensorMetadata = new Map();
-let latestSensors = [];
 let runSensorAvailabilityWarning = "";
 
 const processCard = document.getElementById("process-card");
@@ -367,77 +364,6 @@ stopRunSubmit.addEventListener("click", async () => {
   }
 });
 
-for (const card of document.querySelectorAll(".sensor-card")) {
-  sensorMetadata.set(card.dataset.sensorId, {
-    name: card.dataset.sensorName,
-    measurement_type: card.dataset.measurementType,
-    unit: card.dataset.unit,
-    enabled: card.dataset.enabled === "true",
-  });
-}
-
-function mergeSensorMetadata(sensor) {
-  const metadata = sensorMetadata.get(sensor.id);
-  return metadata ? { ...sensor, ...metadata } : sensor;
-}
-
-function hasSuccessfulRead(sensor) {
-  return (
-    sensor.last_successful_read &&
-    !sensor.last_successful_read.startsWith("0001-")
-  );
-}
-
-function renderSensors(sensors) {
-  const sensorList = document.getElementById("sensor-list");
-  const sensorCount = document.getElementById("sensor-count");
-  const sensorCardTemplate = document.getElementById(
-    "sensor-card-template",
-  );
-  const cards = document.createDocumentFragment();
-
-  for (const sensor of sensors) {
-    const card =
-      sensorCardTemplate.content.firstElementChild.cloneNode(true);
-    const successfulRead = hasSuccessfulRead(sensor);
-    const status = card.querySelector('[data-field="status"]');
-
-    card.dataset.sensorId = sensor.id;
-
-    card.querySelector('[data-field="name"]').textContent = sensor.name;
-    card.querySelector('[data-field="id"]').textContent = sensor.id;
-    card.querySelector('[data-field="temperature"]').textContent =
-      successfulRead && Number.isFinite(sensor.temperature)
-        ? sensor.temperature.toFixed(1)
-        : "—";
-
-    status.textContent = sensor.status === "OK" ? "В сети" : "Ошибка";
-    status.classList.add(
-      sensor.status === "OK" ? "text-bg-success" : "text-bg-danger",
-    );
-
-    card.querySelector(
-      '[data-field="last-successful-read"]',
-    ).textContent = successfulRead
-      ? `Последнее чтение: ${lastReadFormatter.format(
-          new Date(sensor.last_successful_read),
-        )}`
-      : "Нет успешных измерений";
-
-    cards.append(card);
-  }
-
-  sensorList.replaceChildren(cards);
-  sensorCount.textContent = `${sensors.length} подключено`;
-  renderRunSensorOptions(sensors);
-}
-
-function sensorIsAvailable(sensor) {
-  return (
-    sensor.enabled && sensor.status === "OK" && hasSuccessfulRead(sensor)
-  );
-}
-
 function renderRunSensorOptions(sensors) {
   const container = document.getElementById("run-sensor-options");
   const previousInputs = [
@@ -452,7 +378,7 @@ function renderRunSensorOptions(sensors) {
   const options = document.createDocumentFragment();
 
   for (const sensor of sensors) {
-    const available = sensorIsAvailable(sensor);
+    const available = sensor.available;
     if (!available && previousSelection.has(sensor.id)) {
       runSensorAvailabilityWarning = `Датчик «${sensor.name}» стал недоступен и исключён из записи.`;
     }
@@ -498,130 +424,15 @@ function renderRunSensorOptions(sensors) {
   updateStartRunAvailability();
 }
 
-async function loadStatus() {
-  try {
-    const sensors = await getSensorStatus();
-
-    if (!Array.isArray(sensors)) {
-      throw new Error("Unexpected status response format");
-    }
-
-    latestSensors = sensors.map(mergeSensorMetadata);
-    renderSensors(latestSensors);
-    statusSynchronized = true;
-    document.getElementById("status-error").classList.add("d-none");
+initSensors({
+  pollingInterval: statusPollingInterval,
+  onSensorsChanged(sensors) {
+    renderRunSensorOptions(sensors);
+  },
+  onSyncChanged(synchronized) {
+    statusSynchronized = synchronized;
     updateStartRunAvailability();
-  } catch (error) {
-    console.error("Failed to load status:", error);
-    statusSynchronized = false;
-    document.getElementById("status-error").classList.remove("d-none");
-    updateStartRunAvailability();
-  }
-}
-
-loadStatus();
-setInterval(loadStatus, statusPollingInterval);
-
-const sensorList = document.getElementById("sensor-list");
-const settingsModalElement = document.getElementById(
-  "sensor-settings-modal",
-);
-const settingsModal = new window.bootstrap.Modal(settingsModalElement);
-const settingsForm = document.getElementById("sensor-settings-form");
-const hardwareIDInput = document.getElementById("sensor-hardware-id");
-const nameInput = document.getElementById("sensor-name");
-const settingsError = document.getElementById("sensor-settings-error");
-
-function showSettingsError(message) {
-  settingsError.textContent = message;
-  nameInput.classList.add("is-invalid");
-}
-
-function clearSettingsError() {
-  settingsError.textContent = "";
-  nameInput.classList.remove("is-invalid");
-}
-
-function updateRenderedSensorName(hardwareID, name) {
-  for (const card of sensorList.querySelectorAll(".sensor-card")) {
-    if (card.dataset.sensorId !== hardwareID) continue;
-
-    card.querySelector('[data-field="name"], .card-title').textContent =
-      name;
-    card.dataset.sensorName = name;
-    return;
-  }
-}
-
-sensorList.addEventListener("click", (event) => {
-  const button = event.target.closest('[data-action="configure-sensor"]');
-  if (!button) return;
-
-  const card = button.closest(".sensor-card");
-  const hardwareID = card.dataset.sensorId;
-  const metadata = sensorMetadata.get(hardwareID);
-  if (!metadata) return;
-
-  hardwareIDInput.value = hardwareID;
-  nameInput.value = metadata.name;
-  clearSettingsError();
-  settingsModal.show();
-});
-
-settingsModalElement.addEventListener("shown.bs.modal", () => {
-  nameInput.focus();
-  nameInput.select();
-});
-
-settingsForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  clearSettingsError();
-
-  const hardwareID = hardwareIDInput.value;
-  const metadata = sensorMetadata.get(hardwareID);
-  const name = nameInput.value.trim();
-
-  if (!name) {
-    showSettingsError("Введите название датчика.");
-    return;
-  }
-
-  if (!metadata) {
-    showSettingsError("Не удалось найти данные датчика.");
-    return;
-  }
-
-  const submitButton = settingsForm.querySelector('[type="submit"]');
-  submitButton.disabled = true;
-
-  try {
-    const updatedSensor = await updateSensor(hardwareID, {
-      name,
-      measurement_type: metadata.measurement_type,
-      unit: metadata.unit,
-      enabled: metadata.enabled,
-    });
-    sensorMetadata.set(hardwareID, {
-      name: updatedSensor.name,
-      measurement_type: updatedSensor.measurement_type,
-      unit: updatedSensor.unit,
-      enabled: updatedSensor.enabled,
-    });
-    latestSensors = latestSensors.map(mergeSensorMetadata);
-    if (latestSensors.length > 0) {
-      renderSensors(latestSensors);
-    } else {
-      updateRenderedSensorName(hardwareID, updatedSensor.name);
-    }
-    settingsModal.hide();
-  } catch (error) {
-    console.error("Failed to update sensor:", error);
-    showSettingsError(
-      "Не удалось сохранить название. Попробуйте ещё раз.",
-    );
-  } finally {
-    submitButton.disabled = false;
-  }
+  },
 });
 
 function showNewBatchFields(show) {
