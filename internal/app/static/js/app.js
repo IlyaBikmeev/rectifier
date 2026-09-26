@@ -3,11 +3,11 @@ import {
   createRun,
   getBatches,
   getProcess,
-  getRunMeasurements,
   getSensorStatus,
   stopRun,
   updateSensor,
 } from "./api.js";
+import { createRunChart } from "./chart.js";
 import { initRouter } from "./router.js";
 
 const routes = new Map([
@@ -68,78 +68,14 @@ let batchesLoaded = false;
 let batchesLoading = false;
 let startRunSubmitting = false;
 let stopRunSubmitting = false;
-const runChartPanel = document.getElementById("run-chart-panel");
-const runChartLoading = document.getElementById("run-chart-loading");
-const runChartEmpty = document.getElementById("run-chart-empty");
-const runChartContainer = document.getElementById(
-  "run-chart-container",
-);
-const runChartError = document.getElementById("run-chart-error");
-const runChartCanvas = document.getElementById("run-chart");
-const runChartColors = [
-  "#0d6efd",
-  "#dc3545",
-  "#198754",
-  "#fd7e14",
-  "#6f42c1",
-  "#0aa2c0",
-];
-const runChartPointStyles = [
-  "circle",
-  "rect",
-  "triangle",
-  "rectRot",
-  "crossRot",
-  "star",
-];
-const chartAbsoluteTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
+const runChart = createRunChart({
+  panel: document.getElementById("run-chart-panel"),
+  loading: document.getElementById("run-chart-loading"),
+  empty: document.getElementById("run-chart-empty"),
+  container: document.getElementById("run-chart-container"),
+  error: document.getElementById("run-chart-error"),
+  canvas: document.getElementById("run-chart"),
 });
-let runChart = null;
-let runChartRunID = null;
-let runChartRequestVersion = 0;
-let runChartHasResponse = false;
-const runChartHiddenSensorIDs = new Set();
-
-function destroyRunChart() {
-  if (runChart) {
-    runChart.destroy();
-    runChart = null;
-  }
-}
-
-function hideRunChart() {
-  runChartRequestVersion += 1;
-  runChartRunID = null;
-  runChartHasResponse = false;
-  runChartHiddenSensorIDs.clear();
-  destroyRunChart();
-  runChartPanel.classList.add("d-none");
-  runChartError.classList.add("d-none");
-  runChartLoading.classList.remove("d-none");
-  runChartEmpty.classList.add("d-none");
-  runChartContainer.classList.add("d-none");
-}
-
-function showRunChart(runID) {
-  if (runChartRunID !== runID) {
-    runChartRequestVersion += 1;
-    runChartRunID = runID;
-    runChartHasResponse = false;
-    runChartHiddenSensorIDs.clear();
-    destroyRunChart();
-    runChartError.classList.add("d-none");
-    runChartLoading.classList.remove("d-none");
-    runChartEmpty.classList.add("d-none");
-    runChartContainer.classList.add("d-none");
-  }
-  runChartPanel.classList.remove("d-none");
-}
 
 function selectedRunSensorIDs() {
   return [
@@ -218,173 +154,6 @@ function formatDuration(totalMilliseconds) {
   );
   const seconds = String(totalSeconds % 60).padStart(2, "0");
   return `${hours}:${minutes}:${seconds}`;
-}
-
-function formatChartTick(elapsedMilliseconds, runDuration) {
-  const totalMinutes = Math.max(
-    0,
-    Math.floor(elapsedMilliseconds / 60000),
-  );
-  const seconds = String(
-    Math.max(0, Math.floor(elapsedMilliseconds / 1000)) % 60,
-  ).padStart(2, "0");
-  if (runDuration < 3600000) {
-    return `${String(totalMinutes).padStart(2, "0")}:${seconds}`;
-  }
-  const hours = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
-  const minutes = String(totalMinutes % 60).padStart(2, "0");
-  return `${hours}:${minutes}`;
-}
-
-function renderRunMeasurements(payload) {
-  const from = new Date(payload.from).getTime();
-  const to = new Date(payload.to).getTime();
-  if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) {
-    throw new Error("Unexpected measurement bounds");
-  }
-
-  const duration = Math.max(to - from, 1000);
-  if (runChart) {
-    runChart.data.datasets.forEach((dataset, index) => {
-      if (runChart.isDatasetVisible(index)) {
-        runChartHiddenSensorIDs.delete(dataset.sensorHardwareID);
-      } else {
-        runChartHiddenSensorIDs.add(dataset.sensorHardwareID);
-      }
-    });
-  }
-  let pointCount = 0;
-  const datasets = payload.sensors.map((sensor, index) => {
-    if (!Array.isArray(sensor.measurements)) {
-      throw new Error("Unexpected sensor measurements");
-    }
-    const data = sensor.measurements.map((measurement) => {
-      const measuredAt = new Date(measurement.measured_at).getTime();
-      if (!Number.isFinite(measuredAt) || !Number.isFinite(measurement.value)) {
-        throw new Error("Unexpected measurement point");
-      }
-      return {
-        x: measuredAt - from,
-        y: measurement.value,
-        measuredAt,
-      };
-    });
-    pointCount += data.length;
-    const paletteIndex = index % runChartColors.length;
-    return {
-      label: sensor.name,
-      sensorHardwareID: sensor.hardware_id,
-      data,
-      parsing: false,
-      borderColor: runChartColors[paletteIndex],
-      backgroundColor: runChartColors[paletteIndex],
-      pointStyle: runChartPointStyles[paletteIndex],
-      borderWidth: 2,
-      pointRadius: 2,
-      pointHoverRadius: 5,
-      tension: 0.15,
-      fill: false,
-      hidden: runChartHiddenSensorIDs.has(sensor.hardware_id),
-    };
-  });
-
-  runChartHasResponse = true;
-  runChartLoading.classList.add("d-none");
-  runChartEmpty.classList.toggle("d-none", pointCount > 0);
-  runChartContainer.classList.toggle("d-none", pointCount === 0);
-
-  if (pointCount === 0) {
-    destroyRunChart();
-    return;
-  }
-
-  if (runChart) {
-    runChart.data.datasets = datasets;
-    runChart.options.scales.x.max = duration;
-    runChart.options.scales.x.ticks.callback = (value) =>
-      formatChartTick(Number(value), duration);
-    runChart.update("none");
-    return;
-  }
-
-  runChart = new window.Chart(runChartCanvas, {
-    type: "line",
-    data: { datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
-      normalized: true,
-      interaction: { mode: "nearest", intersect: false },
-      scales: {
-        x: {
-          type: "linear",
-          min: 0,
-          max: duration,
-          title: { display: true, text: "Время от начала перегона" },
-          ticks: {
-            callback: (value) => formatChartTick(Number(value), duration),
-          },
-        },
-        y: {
-          title: { display: true, text: "Температура, °C" },
-        },
-      },
-      plugins: {
-        legend: {
-          position: "bottom",
-          labels: { usePointStyle: true },
-        },
-        tooltip: {
-          callbacks: {
-            title: (items) => {
-              if (items.length === 0) return "";
-              const point = items[0].raw;
-              return `${formatDuration(point.x)} · ${chartAbsoluteTimeFormatter.format(new Date(point.measuredAt))}`;
-            },
-            label: (context) =>
-              `${context.dataset.label}: ${context.parsed.y.toFixed(1)} °C`,
-          },
-        },
-      },
-    },
-  });
-}
-
-async function loadRunMeasurements(process) {
-  const runID = process.active_run.id;
-  showRunChart(runID);
-  const requestVersion = ++runChartRequestVersion;
-  if (!runChartHasResponse) runChartLoading.classList.remove("d-none");
-
-  try {
-    const payload = await getRunMeasurements(runID);
-    if (
-      payload.run_id !== runID ||
-      !Array.isArray(payload.sensors)
-    ) {
-      throw new Error("Unexpected measurements response format");
-    }
-    if (
-      requestVersion !== runChartRequestVersion ||
-      runID !== runChartRunID
-    ) {
-      return;
-    }
-    renderRunMeasurements(payload);
-    runChartError.classList.add("d-none");
-  } catch (error) {
-    if (
-      requestVersion !== runChartRequestVersion ||
-      runID !== runChartRunID
-    ) {
-      return;
-    }
-    console.error("Failed to load run measurements:", error);
-    runChartLoading.classList.add("d-none");
-    runChartError.classList.remove("d-none");
-    if (!runChartHasResponse) runChartEmpty.classList.remove("d-none");
-  }
 }
 
 function formatSensorCount(count) {
@@ -469,7 +238,7 @@ function renderProcess(process) {
 
   if ((isRunning || status === "STOPPING") && process.active_run) {
     const run = process.active_run;
-    showRunChart(run.id);
+    runChart.show(run.id);
     document.getElementById("active-run-batch").textContent =
       run.batch.name;
     document.getElementById("active-run-type").textContent =
@@ -482,7 +251,7 @@ function renderProcess(process) {
       run.batch.name;
     updateProcessTimer();
   } else {
-    hideRunChart();
+    runChart.hide();
   }
   updateStartRunAvailability();
   updateStopRunAvailability();
@@ -516,7 +285,7 @@ async function loadProcess() {
       (process.status === "RUNNING" || process.status === "STOPPING") &&
       process.active_run
     ) {
-      loadRunMeasurements(process);
+      runChart.refresh();
     }
     return process;
   } catch (error) {
