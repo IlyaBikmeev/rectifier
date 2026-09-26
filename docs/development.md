@@ -21,7 +21,7 @@ Fake-режим включён по умолчанию и создаёт три 
 Основной поток изменения данных:
 
 ```text
-SQLite → repository → AppState → HTTP API → inline JavaScript/UI
+SQLite → repository → AppState → HTTP API → ES modules/UI
 ```
 
 - `cmd/rectifier` разбирает параметры, открывает SQLite, применяет миграции и
@@ -32,6 +32,22 @@ SQLite → repository → AppState → HTTP API → inline JavaScript/UI
   migrations.
 - `internal/app` содержит потокобезопасный оперативный снимок, polling,
   HTTP API, метрики и встроенный UI.
+
+Frontend не требует package manager или сборки. `index.html` подключает
+локальные Bootstrap, Chart.js и единственную пользовательскую точку входа
+`/static/js/app.js`. Пользовательский код разделён по ответственности:
+
+| Файл | Ответственность |
+|---|---|
+| `app.js` | Инициализация приложения и связывание модулей |
+| `api.js` | HTTP-запросы без DOM/UI-логики |
+| `router.js` | Hash routing и переключение views |
+| `sensors.js` | Polling, карточки и настройки датчиков |
+| `runs.js` | Process state, Batch, Start/Stop и таймер Run |
+| `chart.js` | Chart.js, measurements и состояния графика |
+
+Пользовательские стили находятся в `/static/css/app.css`. Все frontend-assets
+встраиваются в Go-бинарник через `go:embed`, поэтому UI работает без интернета.
 
 SQLite — источник истины для длительного состояния. `AppState` — оперативный
 потокобезопасный снимок. Команда сначала должна успешно сохраниться в SQLite и
@@ -66,11 +82,17 @@ go test ./...
 
 ```bash
 gofmt -w <изменённые-go-файлы>
+node --check internal/app/static/js/*.js
 go test ./...
 git diff --check
 ```
 
 Автоматических тестов пока нет: `go test ./...` проверяет компиляцию пакетов.
-Для сквозного изменения вручную проверяйте SQLite, API, inline JavaScript и UI.
-Не добавляйте framework или dependency, если задачу решает стандартная
-библиотека. Сохраняйте hardware-логику отдельно от жизненного цикла Run.
+Для сквозного изменения вручную проверяйте SQLite, API, затронутые ES modules и
+UI. Не добавляйте framework, package manager, build step или dependency, если
+задачу решают Go standard library и существующий vanilla JavaScript. Сохраняйте
+hardware-логику отдельно от жизненного цикла Run.
+
+Если изменение затрагивает архитектуру, поведение, API, структуру каталогов,
+запуск или процесс разработки, одновременно обновляйте связанные документы и
+`AGENTS.md`.

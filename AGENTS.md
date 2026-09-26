@@ -8,7 +8,8 @@
 - Raspberry Pi 5
 - DS18B20 через Linux 1-Wire
 - `net/http` для локального Web UI/API
-- Bootstrap для UI
+- Vanilla JavaScript с ES modules без frontend build step
+- Bootstrap и Chart.js для UI
 - Prometheus-совместимый `/metrics`
 - Grafana Alloy → Grafana Cloud
 - SQLite для партий, запусков, датчиков и измерений
@@ -17,6 +18,10 @@
 
 - `cmd/rectifier` — точка входа приложения.
 - Основной код находится в `internal`.
+- `internal/app/templates/index.html` содержит основную HTML-разметку, а
+  пользовательские CSS и JavaScript находятся в `internal/app/static`.
+- `internal/app/static/js/app.js` — единственная frontend-точка входа и место
+  высокоуровневого связывания модулей.
 - Не добавлять фреймворки и внешние зависимости без необходимости.
 - Предпочитать стандартную библиотеку Go.
 - Hardware-логику отделять от логики приложения.
@@ -37,6 +42,8 @@
 5. Prometheus `/metrics`.
 6. Полный жизненный цикл Start/Stop с сохранением измерений.
 7. График активного Run и восстановление активного Run после перезапуска.
+8. Frontend разделён на ES modules по ответственности: API, routing, sensors,
+   Runs и Chart.js.
 
 Ближайший этап — история завершённых Run и runtime-rescan датчиков.
 
@@ -53,11 +60,19 @@
   его повторной синхронизацией через `/api/process`.
 - При потере синхронизации блокировать действия, изменяющие состояние.
 - Не имитировать Start/Stop только на клиенте.
-- Использовать существующие Bootstrap и inline JavaScript, не добавляя
-  frontend-фреймворк или пользовательские стили без необходимости.
+- Использовать существующие Bootstrap, Chart.js и vanilla ES modules. Не
+  добавлять frontend-фреймворк, package manager или build step без необходимости.
+- Сохранять границы frontend-модулей: `api.js` не содержит DOM-логики,
+  `router.js` отвечает за hash navigation, `sensors.js` — за датчики,
+  `runs.js` — за жизненный цикл Run, `chart.js` — за график, а `app.js` только
+  связывает модули.
 - Сохранять hardware-логику отдельно от жизненного цикла Run.
-- Для каждого среза проверять API, состояние SQLite, inline JavaScript,
-  `git diff --check` и `go test ./...`.
+- Для каждого среза проверять API, состояние SQLite, затронутые frontend-модули,
+  UI, `git diff --check` и `go test ./...`.
+- При изменении архитектуры, поведения, API, структуры каталогов, процесса
+  запуска или разработки обновлять связанные `README.md`, документы в `docs`
+  и инструкции `AGENTS.md` в том же срезе. Не оставлять заведомо устаревшие
+  описания и команды.
 
 ## Стиль разработки
 
