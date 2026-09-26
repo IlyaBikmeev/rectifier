@@ -11,6 +11,7 @@ import (
 type RunEventRepository interface {
 	Create(ctx context.Context, event RunEvent) (RunEvent, error)
 	All(ctx context.Context, runID int) ([]RunEvent, error)
+	Update(ctx context.Context, eventID int, update RunEventUpdate) (RunEvent, error)
 	Delete(ctx context.Context, eventID int) error
 }
 
@@ -20,6 +21,11 @@ type RunEvent struct {
 	Text       string
 	OccurredAt *time.Time
 	CreatedAt  time.Time
+}
+
+type RunEventUpdate struct {
+	Text       *string
+	OccurredAt *time.Time
 }
 
 var (
@@ -160,4 +166,58 @@ func (s *SQLiteRunEventRepository) Delete(ctx context.Context, eventID int) erro
 	}
 
 	return nil
+}
+
+func (s *SQLiteRunEventRepository) Update(ctx context.Context, eventID int, update RunEventUpdate) (RunEvent, error) {
+	if update.OccurredAt != nil {
+		var runID int
+		err := s.db.QueryRowContext(
+			ctx,
+			"SELECT run_id FROM run_events WHERE id = ?",
+			eventID,
+		).Scan(&runID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return RunEvent{}, ErrRunEventNotFound
+			}
+			return RunEvent{}, fmt.Errorf("find run for event %d: %w", eventID, err)
+		}
+
+		occurredAt := update.OccurredAt.UTC()
+		update.OccurredAt = &occurredAt
+		if err := s.validateOccurredAt(ctx, runID, time.Now().UTC(), occurredAt); err != nil {
+			return RunEvent{}, err
+		}
+	}
+
+	query := `
+		UPDATE run_events
+		SET text = COALESCE(?, text),
+			occurred_at = COALESCE(?, occurred_at)
+		WHERE id = ?
+		RETURNING id, run_id, text, occurred_at, created_at
+	`
+
+	var updatedEvent RunEvent
+	err := s.db.QueryRowContext(
+		ctx,
+		query,
+		update.Text,
+		update.OccurredAt,
+		eventID,
+	).Scan(
+		&updatedEvent.ID,
+		&updatedEvent.RunID,
+		&updatedEvent.Text,
+		&updatedEvent.OccurredAt,
+		&updatedEvent.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return RunEvent{}, ErrRunEventNotFound
+		}
+		return RunEvent{}, fmt.Errorf("update run event %d: %w", eventID, err)
+	}
+
+	return updatedEvent, nil
 }

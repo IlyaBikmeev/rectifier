@@ -16,6 +16,11 @@ type runEventRequest struct {
 	OccurredAt *time.Time `json:"occurred_at"`
 }
 
+type updateRunEventRequest struct {
+	Text       *string    `json:"text"`
+	OccurredAt *time.Time `json:"occurred_at"`
+}
+
 type runEventResponse struct {
 	ID         int       `json:"id"`
 	RunID      int       `json:"run_id"`
@@ -149,4 +154,67 @@ func handleDeleteEvent(w http.ResponseWriter, r *http.Request, runEventRepositor
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func handleUpdateEvent(w http.ResponseWriter, r *http.Request, runEventRepository storage.RunEventRepository) {
+	eventID, err := strconv.Atoi(r.PathValue("eventID"))
+	if err != nil || eventID <= 0 {
+		http.Error(w, "invalid event id", http.StatusBadRequest)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+
+	var request updateRunEventRequest
+	if err := decoder.Decode(&request); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if request.Text == nil && request.OccurredAt == nil {
+		http.Error(w, "text or occurred_at is required", http.StatusBadRequest)
+		return
+	}
+	if request.Text != nil {
+		trimmedText := strings.TrimSpace(*request.Text)
+		if trimmedText == "" {
+			http.Error(w, "text is required", http.StatusBadRequest)
+			return
+		}
+		if len([]rune(trimmedText)) > 200 {
+			http.Error(w, "text length exceeded", http.StatusBadRequest)
+			return
+		}
+		request.Text = &trimmedText
+	}
+
+	updatedEvent, err := runEventRepository.Update(r.Context(), eventID, storage.RunEventUpdate{
+		Text:       request.Text,
+		OccurredAt: request.OccurredAt,
+	})
+	if err != nil {
+		if errors.Is(err, storage.ErrRunEventTimeOutOfRange) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		} else if errors.Is(err, storage.ErrRunEventNotFound) {
+			http.Error(w, "run event not found", http.StatusNotFound)
+		} else {
+			fmt.Printf("handle update event: %v\n", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	response := runEventResponse{
+		ID:         updatedEvent.ID,
+		RunID:      updatedEvent.RunID,
+		Text:       updatedEvent.Text,
+		OccurredAt: *updatedEvent.OccurredAt,
+		CreatedAt:  updatedEvent.CreatedAt,
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		fmt.Printf("encode update event response: %v\n", err)
+	}
 }

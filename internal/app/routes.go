@@ -55,6 +55,9 @@ func newRouter(
 	mux.HandleFunc("DELETE /api/events/{eventID}", func(w http.ResponseWriter, r *http.Request) {
 		handleDeleteEvent(w, r, runEventRepository)
 	})
+	mux.HandleFunc("PATCH /api/events/{eventID}", func(w http.ResponseWriter, r *http.Request) {
+		handleUpdateEvent(w, r, runEventRepository)
+	})
 
 	mux.Handle("GET /metrics", promhttp.Handler())
 
