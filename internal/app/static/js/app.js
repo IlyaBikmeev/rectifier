@@ -1,3 +1,14 @@
+import {
+  createBatch,
+  createRun,
+  getBatches,
+  getProcess,
+  getRunMeasurements,
+  getSensorStatus,
+  stopRun,
+  updateSensor,
+} from "./api.js";
+
 const routes = new Map([
   ["#/", document.getElementById("home-view")],
   ["#/history", document.getElementById("history-view")],
@@ -380,12 +391,7 @@ async function loadRunMeasurements(process) {
   if (!runChartHasResponse) runChartLoading.classList.remove("d-none");
 
   try {
-    const response = await fetch(
-      `/api/runs/${encodeURIComponent(runID)}/measurements`,
-      { cache: "no-store" },
-    );
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const payload = await response.json();
+    const payload = await getRunMeasurements(runID);
     if (
       payload.run_id !== runID ||
       !Array.isArray(payload.sensors)
@@ -517,10 +523,7 @@ function renderProcess(process) {
 
 async function loadProcess() {
   try {
-    const response = await fetch("/api/process", { cache: "no-store" });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const process = await response.json();
+    const process = await getProcess();
     const supportedStatuses = [
       "STOPPED",
       "STARTING",
@@ -602,20 +605,14 @@ stopRunSubmit.addEventListener("click", async () => {
   updateStopRunAvailability();
 
   try {
-    const response = await fetch(
-      `/api/runs/${encodeURIComponent(runID)}/stop`,
-      { method: "POST" },
-    );
-
-    if (response.status === 204) {
-      stopRunSubmitting = false;
-      renderProcess({ status: "STOPPED", active_run: null });
-      stopRunModal.hide();
-      await loadProcess();
-      return;
-    }
-
-    if (response.status === 409) {
+    await stopRun(runID);
+    stopRunSubmitting = false;
+    renderProcess({ status: "STOPPED", active_run: null });
+    stopRunModal.hide();
+    await loadProcess();
+    return;
+  } catch (error) {
+    if (error.status === 409) {
       const process = await loadProcess();
       stopRunSubmitting = false;
       updateStopRunAvailability();
@@ -623,11 +620,7 @@ stopRunSubmit.addEventListener("click", async () => {
         stopRunModal.hide();
         return;
       }
-      throw new Error("conflict");
     }
-
-    throw new Error(`HTTP ${response.status}`);
-  } catch (error) {
     console.error("Failed to stop run:", error);
     stopRunSubmitting = false;
     stopRunError.textContent =
@@ -771,15 +764,7 @@ function renderRunSensorOptions(sensors) {
 
 async function loadStatus() {
   try {
-    const response = await fetch("/api/status", {
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const sensors = await response.json();
+    const sensors = await getSensorStatus();
 
     if (!Array.isArray(sensors)) {
       throw new Error("Unexpected status response format");
@@ -874,25 +859,12 @@ settingsForm.addEventListener("submit", async (event) => {
   submitButton.disabled = true;
 
   try {
-    const response = await fetch(
-      `/api/sensors/${encodeURIComponent(hardwareID)}`,
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          measurement_type: metadata.measurement_type,
-          unit: metadata.unit,
-          enabled: metadata.enabled,
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const updatedSensor = await response.json();
+    const updatedSensor = await updateSensor(hardwareID, {
+      name,
+      measurement_type: metadata.measurement_type,
+      unit: metadata.unit,
+      enabled: metadata.enabled,
+    });
     sensorMetadata.set(hardwareID, {
       name: updatedSensor.name,
       measurement_type: updatedSensor.measurement_type,
@@ -959,10 +931,7 @@ async function loadBatches(preserveSelection = false) {
   updateStartRunAvailability();
 
   try {
-    const response = await fetch("/api/batches", { cache: "no-store" });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const batches = await response.json();
+    const batches = await getBatches();
     if (!Array.isArray(batches)) {
       throw new Error("Unexpected batches response format");
     }
@@ -1047,21 +1016,6 @@ function showStartRunError(message) {
   startRunError.classList.remove("d-none");
 }
 
-async function postJSON(url, body) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    const message = (await response.text()).trim();
-    const error = new Error(message || `HTTP ${response.status}`);
-    error.status = response.status;
-    throw error;
-  }
-  return response.json();
-}
-
 startRunForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (
@@ -1080,7 +1034,7 @@ startRunForm.addEventListener("submit", async (event) => {
     let batchID;
     if (batchSelect.value === "new") {
       requestStage = "batch";
-      const batch = await postJSON("/api/batches", {
+      const batch = await createBatch({
         name: newBatchName.value.trim(),
         comment: newBatchComment.value.trim(),
       });
@@ -1105,7 +1059,7 @@ startRunForm.addEventListener("submit", async (event) => {
     }
 
     requestStage = "run";
-    const run = await postJSON("/api/runs", {
+    const run = await createRun({
       batch_id: batchID,
       type: startRunForm.querySelector('input[name="run-type"]:checked')
         .value,
