@@ -922,6 +922,16 @@
             <div class="border rounded p-3">
               <div class="small text-secondary mb-1">Время метки</div>
               <div id="run-event-time-description" class="fw-semibold">Сейчас</div>
+              <div id="run-event-elapsed" class="small text-secondary d-none"></div>
+              <div id="run-event-adjustments" class="d-none mt-3">
+                <div class="row g-2" aria-label="Коррекция времени метки">
+                  <div class="col-6 col-sm-3"><button type="button" class="btn btn-outline-secondary w-100 py-2" data-event-time-offset="-60000">−1 мин</button></div>
+                  <div class="col-6 col-sm-3"><button type="button" class="btn btn-outline-secondary w-100 py-2" data-event-time-offset="-10000">−10 сек</button></div>
+                  <div class="col-6 col-sm-3"><button type="button" class="btn btn-outline-secondary w-100 py-2" data-event-time-offset="10000">+10 сек</button></div>
+                  <div class="col-6 col-sm-3"><button type="button" class="btn btn-outline-secondary w-100 py-2" data-event-time-offset="60000">+1 мин</button></div>
+                </div>
+                <button id="reset-run-event-time" type="button" class="btn btn-link btn-sm px-0 mt-2 d-none">Вернуть сейчас</button>
+              </div>
               <button id="pick-run-event-time" type="button" class="btn btn-sm btn-outline-secondary mt-3">
                 <i class="bi bi-crosshair me-1" aria-hidden="true"></i>
                 Выбрать на графике

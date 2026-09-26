@@ -275,6 +275,7 @@ export function createRunChart({
   let requestVersion = 0;
   let hasResponse = false;
   let runStartedAt = null;
+  let runEndedAt = null;
   let pointSelection = null;
   let previousCanvasTouchAction = null;
   let suppressCanvasClickUntil = 0;
@@ -298,11 +299,17 @@ export function createRunChart({
     hiddenSensorIDs.clear();
     markers = [];
     runStartedAt = null;
+    runEndedAt = null;
     destroyChart();
   }
 
   function canSelectPoint() {
     return chart !== null && runStartedAt !== null;
+  }
+
+  function getTimeBounds() {
+    if (runStartedAt === null || runEndedAt === null) return null;
+    return { from: runStartedAt, to: runEndedAt };
   }
 
   function notifyAvailability() {
@@ -392,9 +399,14 @@ export function createRunChart({
   }
 
   function completePointSelection(value) {
-    if (!pointSelection || !chart || runStartedAt === null) return;
+    if (
+      !pointSelection ||
+      !chart ||
+      runStartedAt === null ||
+      runEndedAt === null
+    ) return;
     const clamped = Math.min(
-      chart.scales.x.max,
+      runEndedAt - runStartedAt,
       Math.max(chart.scales.x.min, value),
     );
     const selected = new Date(runStartedAt + clamped).toISOString();
@@ -439,6 +451,7 @@ export function createRunChart({
 
     const duration = Math.max(to - from, 1000);
     runStartedAt = from;
+    runEndedAt = to;
     if (chart) {
       chart.data.datasets.forEach((dataset, index) => {
         if (chart.isDatasetVisible(index)) {
@@ -736,5 +749,6 @@ export function createRunChart({
     beginPointSelection,
     cancelPointSelection,
     onAvailabilityChanged,
+    getTimeBounds,
   };
 }
