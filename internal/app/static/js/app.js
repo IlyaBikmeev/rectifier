@@ -17,6 +17,7 @@ const chart = createRunChart({
   canvas: document.getElementById("run-chart"),
   selectionHint: document.getElementById("run-chart-pick-hint"),
   markerDetails: document.getElementById("run-chart-marker-details"),
+  onDeleteMarker: (event) => runEvents.openDelete(event, chart),
 });
 
 const runs = initRuns({ chart, runEvents, pollingInterval });
@@ -30,6 +31,7 @@ const historyChart = createRunChart({
   canvas: document.getElementById("history-chart"),
   selectionHint: document.getElementById("history-chart-pick-hint"),
   markerDetails: document.getElementById("history-chart-marker-details"),
+  onDeleteMarker: (event) => runEvents.openDelete(event, historyChart),
 });
 
 const history = initHistory({

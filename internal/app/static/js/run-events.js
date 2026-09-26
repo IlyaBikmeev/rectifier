@@ -1,4 +1,4 @@
-import { createRunEvent } from "./api.js";
+import { createRunEvent, deleteRunEvent } from "./api.js";
 
 const eventTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
   day: "2-digit",
@@ -41,12 +41,52 @@ export function initRunEvents() {
     document.getElementById("run-event-success"),
     { delay: 3000 },
   );
+  const successToastBody = document.querySelector(
+    "#run-event-success .toast-body",
+  );
+  const deleteModalElement = document.getElementById("delete-run-event-modal");
+  const deleteModal = window.bootstrap.Modal.getOrCreateInstance(
+    deleteModalElement,
+  );
+  const deleteForm = document.getElementById("delete-run-event-form");
+  const deleteText = document.getElementById("delete-run-event-text");
+  const deleteError = document.getElementById("delete-run-event-error");
+  const deleteSubmit = document.getElementById("submit-delete-run-event");
 
   let target = null;
   let occurredAt = null;
   let submitting = false;
   let choosingPoint = false;
   let focusTextOnShow = false;
+  let deletion = null;
+  let deleting = false;
+
+  function showSuccess(message) {
+    successToastBody.textContent = message;
+    successToast.show();
+  }
+
+  function updateDelete() {
+    deleteSubmit.disabled = deleting;
+    deleteSubmit.innerHTML = deleting
+      ? '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Удаляем…'
+      : "Удалить";
+    for (const button of deleteModalElement.querySelectorAll(
+      '[data-bs-dismiss="modal"]',
+    )) {
+      button.disabled = deleting;
+    }
+  }
+
+  function openDelete(event, chart) {
+    if (deleting) return;
+    deletion = { event, chart };
+    deleteText.textContent = event.text;
+    deleteError.textContent = "";
+    deleteError.classList.add("d-none");
+    updateDelete();
+    deleteModal.show();
+  }
 
   function update() {
     const completed = target?.status === "STOPPED";
@@ -172,7 +212,7 @@ export function initRunEvents() {
       submitting = false;
       modal.hide();
       await completedTarget.chart.refresh();
-      successToast.show();
+      showSuccess("Метка добавлена");
     } catch (submitError) {
       console.error("Failed to create run event:", submitError);
       submitting = false;
@@ -200,5 +240,44 @@ export function initRunEvents() {
     if (!choosingPoint && !submitting) target = null;
   });
 
-  return { open };
+  deleteForm.addEventListener("submit", async (submitEvent) => {
+    submitEvent.preventDefault();
+    if (deleting || !deletion) return;
+
+    deleting = true;
+    deleteError.classList.add("d-none");
+    updateDelete();
+    try {
+      let message = "Метка удалена";
+      try {
+        await deleteRunEvent(deletion.event.id);
+      } catch (deleteRequestError) {
+        if (deleteRequestError.status !== 404) throw deleteRequestError;
+        message = "Метка уже удалена";
+      }
+
+      const completedDeletion = deletion;
+      deletion = null;
+      deleting = false;
+      completedDeletion.chart.deleteMarker(completedDeletion.event.id);
+      deleteModal.hide();
+      void completedDeletion.chart.refresh();
+      showSuccess(message);
+    } catch (deleteRequestError) {
+      console.error("Failed to delete run event:", deleteRequestError);
+      deleting = false;
+      deleteError.textContent =
+        "Не удалось удалить метку. Проверьте связь и попробуйте ещё раз.";
+      deleteError.classList.remove("d-none");
+      updateDelete();
+    }
+  });
+  deleteModalElement.addEventListener("hide.bs.modal", (event) => {
+    if (deleting) event.preventDefault();
+  });
+  deleteModalElement.addEventListener("hidden.bs.modal", () => {
+    if (!deleting) deletion = null;
+  });
+
+  return { open, openDelete };
 }

@@ -190,9 +190,12 @@
               </div>
               <div id="run-chart-marker-details" class="alert alert-primary d-none mb-3" role="status">
                 <div class="d-flex justify-content-between align-items-start gap-3">
-                  <div>
+                  <div class="flex-grow-1">
                     <div class="fw-semibold" data-marker-text></div>
                     <time class="small" data-marker-time></time>
+                    <div class="mt-2">
+                      <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete-marker">Удалить</button>
+                    </div>
                   </div>
                   <button type="button" class="btn-close" data-action="close-marker-details" aria-label="Закрыть описание метки"></button>
                 </div>
@@ -855,9 +858,12 @@
           </div>
           <div id="history-chart-marker-details" class="alert alert-primary d-none mb-3" role="status">
             <div class="d-flex justify-content-between align-items-start gap-3">
-              <div>
+              <div class="flex-grow-1">
                 <div class="fw-semibold" data-marker-text></div>
                 <time class="small" data-marker-time></time>
+                <div class="mt-2">
+                  <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete-marker">Удалить</button>
+                </div>
               </div>
               <button type="button" class="btn-close" data-action="close-marker-details" aria-label="Закрыть описание метки"></button>
             </div>
@@ -945,6 +951,31 @@
               <button id="submit-run-event" type="submit" class="btn btn-primary">Добавить</button>
             </div>
             <div id="run-event-disabled-reason" class="small text-secondary text-center text-sm-end"></div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div
+      class="modal fade"
+      id="delete-run-event-modal"
+      tabindex="-1"
+      aria-labelledby="delete-run-event-title"
+      aria-describedby="delete-run-event-text"
+    >
+      <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+        <form id="delete-run-event-form" class="modal-content">
+          <div class="modal-header">
+            <h2 class="modal-title fs-5" id="delete-run-event-title">Удалить метку?</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+          </div>
+          <div class="modal-body">
+            <div id="delete-run-event-error" class="alert alert-danger d-none" role="alert"></div>
+            <p id="delete-run-event-text" class="mb-0 text-break"></p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+            <button id="submit-delete-run-event" type="submit" class="btn btn-danger">Удалить</button>
           </div>
         </form>
       </div>

@@ -269,6 +269,7 @@ export function createRunChart({
   canvas,
   selectionHint,
   markerDetails,
+  onDeleteMarker,
 }) {
   let chart = null;
   let runID = null;
@@ -340,6 +341,14 @@ export function createRunChart({
       new Date(marker.occurredAt),
     );
     markerDetails.classList.remove("d-none");
+    chart.draw();
+  }
+
+  function deleteMarker(eventID) {
+    markers = markers.filter((marker) => marker.id !== eventID);
+    hideMarkerDetails();
+    if (!chart) return;
+    chart.$runMarkers = markers;
     chart.draw();
   }
 
@@ -737,6 +746,11 @@ export function createRunChart({
   markerDetails.addEventListener("click", (event) => {
     if (event.target.closest('[data-action="close-marker-details"]')) {
       hideMarkerDetails();
+      return;
+    }
+    if (event.target.closest('[data-action="delete-marker"]')) {
+      const marker = chart?.$selectedRunMarker;
+      if (marker) onDeleteMarker(marker);
     }
   });
 
@@ -750,5 +764,6 @@ export function createRunChart({
     cancelPointSelection,
     onAvailabilityChanged,
     getTimeBounds,
+    deleteMarker,
   };
 }

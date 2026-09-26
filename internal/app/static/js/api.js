@@ -87,3 +87,11 @@ export function createRunEvent(runID, event) {
     body: JSON.stringify(event),
   });
 }
+
+export function deleteRunEvent(eventID) {
+  return requestJSON(
+    `/api/events/${encodeURIComponent(eventID)}`,
+    { method: "DELETE" },
+    204,
+  );
+}
