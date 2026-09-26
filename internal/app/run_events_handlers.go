@@ -89,3 +89,44 @@ func handleCreateEvent(w http.ResponseWriter, r *http.Request, runEventRepositor
 	}
 
 }
+
+func handleGetEvents(w http.ResponseWriter, r *http.Request, runEventRepository storage.RunEventRepository) {
+	runID, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || runID <= 0 {
+		http.Error(w, "invalid run id", http.StatusBadRequest)
+		return
+	}
+
+	runEvents, err := runEventRepository.All(r.Context(), runID)
+
+	if err != nil {
+		if errors.Is(err, storage.ErrRunNotFound) {
+			http.Error(w, "run not found", http.StatusNotFound)
+		} else {
+			fmt.Printf("handle get events: %v\n", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	responses := make([]runEventResponse, 0, len(runEvents))
+
+	for _, event := range runEvents {
+		response := runEventResponse{
+			ID:         event.ID,
+			RunID:      event.RunID,
+			Text:       event.Text,
+			OccurredAt: *event.OccurredAt,
+			CreatedAt:  event.CreatedAt,
+		}
+
+		responses = append(responses, response)
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(responses); err != nil {
+		fmt.Printf("Encode get events response: %v\n", err)
+	}
+}

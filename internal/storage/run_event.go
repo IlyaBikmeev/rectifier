@@ -10,6 +10,7 @@ import (
 
 type RunEventRepository interface {
 	Create(ctx context.Context, event RunEvent) (RunEvent, error)
+	All(ctx context.Context, runID int) ([]RunEvent, error)
 }
 
 type RunEvent struct {
@@ -87,4 +88,51 @@ func (s *SQLiteRunEventRepository) validateOccurredAt(ctx context.Context, runID
 	}
 
 	return nil
+}
+
+func (s *SQLiteRunEventRepository) All(ctx context.Context, runID int) ([]RunEvent, error) {
+	var exists bool
+
+	err := s.db.QueryRowContext(
+		ctx,
+		`SELECT EXISTS(SELECT 1 FROM runs WHERE id = ?)`,
+		runID,
+	).Scan(&exists)
+
+	if err != nil {
+		return nil, fmt.Errorf("check run existence: %w", err)
+	}
+	if !exists {
+		return nil, ErrRunNotFound
+	}
+
+	query := `
+		SELECT id, run_id, text, occurred_at, created_at
+		FROM run_events
+		WHERE run_id = ?
+		ORDER BY occurred_at ASC, id ASC
+	`
+
+	rows, err := s.db.QueryContext(ctx, query, runID)
+
+	if err != nil {
+		return nil, fmt.Errorf("find all run events: %w", err)
+	}
+
+	runEvents := make([]RunEvent, 0)
+	defer rows.Close()
+	for rows.Next() {
+		var runEvent RunEvent
+		if err := rows.Scan(&runEvent.ID, &runEvent.RunID, &runEvent.Text, &runEvent.OccurredAt, &runEvent.CreatedAt); err != nil {
+			return nil, fmt.Errorf("rows scan in find all run events: %w", err)
+		}
+
+		runEvents = append(runEvents, runEvent)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("err in rows in find all run events: %w", err)
+	}
+
+	return runEvents, nil
 }
