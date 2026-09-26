@@ -171,7 +171,12 @@ func Run(
 	mux := http.NewServeMux()
 	staticHandler := http.FileServerFS(staticFiles)
 	mux.Handle("GET /static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "public, max-age=86400")
+		if strings.HasPrefix(r.URL.Path, "/static/js/") ||
+			strings.HasPrefix(r.URL.Path, "/static/css/") {
+			w.Header().Set("Cache-Control", "no-cache")
+		} else {
+			w.Header().Set("Cache-Control", "public, max-age=86400")
+		}
 		staticHandler.ServeHTTP(w, r)
 	}))
 	mux.HandleFunc("GET /icon.png", func(w http.ResponseWriter, r *http.Request) {
