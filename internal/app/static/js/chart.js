@@ -1,4 +1,4 @@
-import { getRunMeasurements } from "./api.js";
+import { getRunEvents, getRunMeasurements } from "./api.js";
 
 const colors = [
   "#3b78c8",
@@ -137,6 +137,129 @@ function formatTooltipTitle(items) {
   return [`От старта ${elapsed}`, absolute];
 }
 
+function truncateLabel(context, text, maxWidth) {
+  if (context.measureText(text).width <= maxWidth) return text;
+  let result = text;
+  while (result.length > 1 && context.measureText(`${result}…`).width > maxWidth) {
+    result = result.slice(0, -1);
+  }
+  return `${result}…`;
+}
+
+function wrapLabel(context, text, maxWidth) {
+  const lines = [];
+  let line = "";
+  for (const word of text.split(/\s+/)) {
+    const candidate = line === "" ? word : `${line} ${word}`;
+    if (context.measureText(candidate).width <= maxWidth) {
+      line = candidate;
+      continue;
+    }
+    if (line !== "") lines.push(line);
+    line = word;
+    while (context.measureText(line).width > maxWidth && line.length > 1) {
+      let splitAt = line.length - 1;
+      while (
+        splitAt > 1 &&
+        context.measureText(line.slice(0, splitAt)).width > maxWidth
+      ) {
+        splitAt -= 1;
+      }
+      lines.push(line.slice(0, splitAt));
+      line = line.slice(splitAt);
+    }
+  }
+  if (line !== "") lines.push(line);
+  return lines;
+}
+
+const runMarkersPlugin = {
+  id: "runMarkers",
+  afterEvent(chart, args) {
+    if (!args.event || !["mousemove", "mouseout"].includes(args.event.type)) return;
+    const previous = chart.$hoveredRunMarker;
+    chart.$hoveredRunMarker = null;
+    if (
+      !chart.$pointSelectionActive &&
+      args.event.type === "mousemove" &&
+      chart.chartArea
+    ) {
+      chart.$hoveredRunMarker = (chart.$runMarkers || []).find((marker) =>
+        Math.abs(chart.scales.x.getPixelForValue(marker.x) - args.event.x) <= 6 &&
+        args.event.y >= chart.chartArea.top &&
+        args.event.y <= chart.chartArea.bottom,
+      ) || null;
+    }
+    if (previous !== chart.$hoveredRunMarker) args.changed = true;
+  },
+  afterDraw(chart) {
+    const markers = chart.$runMarkers || [];
+    const { ctx, chartArea } = chart;
+    if (!chartArea) return;
+
+    ctx.save();
+    ctx.font = "11px sans-serif";
+    const laneEnds = [-Infinity, -Infinity, -Infinity];
+    for (const marker of markers) {
+      const x = chart.scales.x.getPixelForValue(marker.x);
+      if (x < chartArea.left || x > chartArea.right) continue;
+      const active =
+        marker === chart.$hoveredRunMarker ||
+        marker === chart.$selectedRunMarker;
+      ctx.strokeStyle = active
+        ? "rgba(13, 110, 253, 0.9)"
+        : "rgba(33, 37, 41, 0.5)";
+      ctx.lineWidth = active ? 1.5 : 1;
+      ctx.beginPath();
+      ctx.moveTo(x, chartArea.top);
+      ctx.lineTo(x, chartArea.bottom);
+      ctx.stroke();
+      const label = truncateLabel(ctx, marker.text, 110);
+      const width = ctx.measureText(label).width + 8;
+      const left = Math.min(Math.max(x + 3, chartArea.left), chartArea.right - width);
+      const lane = laneEnds.findIndex((end) => left > end + 4);
+      if (lane === -1) continue;
+      laneEnds[lane] = left + width;
+      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.fillRect(left, chartArea.top + 3 + lane * 19, width, 17);
+      ctx.fillStyle = active ? "#0d6efd" : "#212529";
+      ctx.fillText(label, left + 4, chartArea.top + 15 + lane * 19);
+    }
+
+    if (Number.isFinite(chart.$pointSelectionPreview)) {
+      const x = chart.scales.x.getPixelForValue(chart.$pointSelectionPreview);
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = "rgba(13, 110, 253, 0.9)";
+      ctx.beginPath();
+      ctx.moveTo(x, chartArea.top);
+      ctx.lineTo(x, chartArea.bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    const hovered = chart.$hoveredRunMarker;
+    if (hovered) {
+      ctx.font = "12px sans-serif";
+      const width = Math.min(320, chartArea.right - chartArea.left);
+      const textLines = wrapLabel(ctx, hovered.text, width - 16);
+      const timeLabel = absoluteTimeFormatter.format(new Date(hovered.occurredAt));
+      const height = textLines.length * 17 + 29;
+      const x = chart.scales.x.getPixelForValue(hovered.x);
+      const left = Math.min(Math.max(x + 8, chartArea.left), chartArea.right - width);
+      const top = chartArea.top + 25;
+      ctx.fillStyle = "rgba(33, 37, 41, 0.94)";
+      ctx.fillRect(left, top, width, height);
+      ctx.fillStyle = "#fff";
+      textLines.forEach((line, index) => {
+        ctx.fillText(line, left + 8, top + 17 + index * 17);
+      });
+      ctx.fillStyle = "#dee2e6";
+      ctx.fillText(timeLabel, left + 8, top + height - 9);
+    }
+    ctx.restore();
+  },
+};
+
 export function createRunChart({
   panel,
   loading,
@@ -144,25 +267,145 @@ export function createRunChart({
   container,
   error,
   canvas,
+  selectionHint,
+  markerDetails,
 }) {
   let chart = null;
   let runID = null;
   let requestVersion = 0;
   let hasResponse = false;
+  let runStartedAt = null;
+  let pointSelection = null;
+  let previousCanvasTouchAction = null;
+  let suppressCanvasClickUntil = 0;
+  let markers = [];
+  const availabilityListeners = new Set();
   const hiddenSensorIDs = new Set();
 
   function destroyChart() {
     if (!chart) return;
     chart.destroy();
     chart = null;
+    notifyAvailability();
   }
 
   function destroy() {
+    cancelPointSelection(false);
+    hideMarkerDetails();
     requestVersion += 1;
     runID = null;
     hasResponse = false;
     hiddenSensorIDs.clear();
+    markers = [];
+    runStartedAt = null;
     destroyChart();
+  }
+
+  function canSelectPoint() {
+    return chart !== null && runStartedAt !== null;
+  }
+
+  function notifyAvailability() {
+    const available = canSelectPoint();
+    for (const listener of availabilityListeners) listener(available);
+  }
+
+  function onAvailabilityChanged(listener) {
+    availabilityListeners.add(listener);
+    listener(canSelectPoint());
+    return () => availabilityListeners.delete(listener);
+  }
+
+  function hideMarkerDetails() {
+    markerDetails.classList.add("d-none");
+    if (chart) {
+      chart.$selectedRunMarker = null;
+      chart.draw();
+    }
+  }
+
+  function showMarkerDetails(marker) {
+    chart.$selectedRunMarker = marker;
+    markerDetails.querySelector("[data-marker-text]").textContent = marker.text;
+    const markerTime = markerDetails.querySelector("[data-marker-time]");
+    markerTime.dateTime = new Date(marker.occurredAt).toISOString();
+    markerTime.textContent = absoluteTimeFormatter.format(
+      new Date(marker.occurredAt),
+    );
+    markerDetails.classList.remove("d-none");
+    chart.draw();
+  }
+
+  function setTemperatureInteractionEnabled(enabled) {
+    if (!chart) return;
+    chart.options.plugins.tooltip.enabled = enabled;
+    for (const dataset of chart.data.datasets) {
+      dataset.pointHoverRadius = enabled ? 4 : 0;
+    }
+    if (!enabled) {
+      chart.setActiveElements([]);
+      chart.tooltip?.setActiveElements([], { x: 0, y: 0 });
+    }
+    chart.update("none");
+  }
+
+  function setTouchSelectionEnabled(enabled) {
+    if (enabled) {
+      if (previousCanvasTouchAction === null) {
+        previousCanvasTouchAction = canvas.style.touchAction;
+      }
+      canvas.style.touchAction = "none";
+      return;
+    }
+    if (previousCanvasTouchAction === null) return;
+    canvas.style.touchAction = previousCanvasTouchAction;
+    previousCanvasTouchAction = null;
+  }
+
+  function cancelPointSelection(notify = true) {
+    if (!pointSelection) return;
+    const cancelled = pointSelection.onCancelled;
+    pointSelection = null;
+    setTouchSelectionEnabled(false);
+    if (chart) {
+      chart.$pointSelectionPreview = null;
+      chart.$pointSelectionActive = false;
+      setTemperatureInteractionEnabled(true);
+    }
+    selectionHint.classList.add("d-none");
+    if (notify) cancelled();
+  }
+
+  function beginPointSelection(onSelected, onCancelled) {
+    if (!canSelectPoint()) return false;
+    cancelPointSelection(false);
+    pointSelection = { onSelected, onCancelled };
+    chart.$pointSelectionPreview = null;
+    chart.$pointSelectionActive = true;
+    setTouchSelectionEnabled(true);
+    setTemperatureInteractionEnabled(false);
+    // TODO: Adapt selection hints by pointer type: click for mouse, release for touch.
+    selectionHint.querySelector("[data-event-pick-label]").textContent =
+      "Текст сохранён. Коснитесь графика и проведите до нужного момента.";
+    selectionHint.classList.remove("d-none");
+    return true;
+  }
+
+  function completePointSelection(value) {
+    if (!pointSelection || !chart || runStartedAt === null) return;
+    const clamped = Math.min(
+      chart.scales.x.max,
+      Math.max(chart.scales.x.min, value),
+    );
+    const selected = new Date(runStartedAt + clamped).toISOString();
+    const callback = pointSelection.onSelected;
+    pointSelection = null;
+    setTouchSelectionEnabled(false);
+    chart.$pointSelectionPreview = null;
+    chart.$pointSelectionActive = false;
+    setTemperatureInteractionEnabled(true);
+    selectionHint.classList.add("d-none");
+    callback(selected);
   }
 
   function resetView() {
@@ -195,6 +438,7 @@ export function createRunChart({
     }
 
     const duration = Math.max(to - from, 1000);
+    runStartedAt = from;
     if (chart) {
       chart.data.datasets.forEach((dataset, index) => {
         if (chart.isDatasetVisible(index)) {
@@ -236,7 +480,7 @@ export function createRunChart({
         backgroundColor: color,
         borderWidth: 1.5,
         pointRadius: 0,
-        pointHoverRadius: 4,
+        pointHoverRadius: pointSelection ? 0 : 4,
         pointHitRadius: 12,
         tension: 0,
         fill: false,
@@ -259,12 +503,15 @@ export function createRunChart({
       chart.options.scales.x.max = duration;
       chart.options.scales.x.ticks.callback = (value) =>
         formatTick(Number(value), duration, from);
+      chart.$runMarkers = markers;
       chart.update("none");
+      notifyAvailability();
       return;
     }
 
     chart = new window.Chart(canvas, {
       type: "line",
+      plugins: [runMarkersPlugin],
       data: { datasets },
       options: {
         responsive: true,
@@ -330,6 +577,26 @@ export function createRunChart({
         },
       },
     });
+    chart.$runMarkers = markers;
+    chart.draw();
+    notifyAvailability();
+  }
+
+  function normalizeEvents(payload, expectedRunID, from) {
+    if (!Array.isArray(payload)) throw new Error("Unexpected events response format");
+    return payload.map((event) => {
+      const occurredAt = new Date(event?.occurred_at).getTime();
+      if (
+        !Number.isInteger(event?.id) ||
+        event.run_id !== expectedRunID ||
+        typeof event.text !== "string" ||
+        event.text.trim() === "" ||
+        !Number.isFinite(occurredAt)
+      ) {
+        throw new Error("Unexpected run event");
+      }
+      return { id: event.id, text: event.text, occurredAt, x: occurredAt - from };
+    });
   }
 
   async function refresh() {
@@ -340,7 +607,12 @@ export function createRunChart({
     if (!hasResponse) loading.classList.remove("d-none");
 
     try {
-      const payload = await getRunMeasurements(requestedRunID);
+      const [measurementsResult, eventsResult] = await Promise.allSettled([
+        getRunMeasurements(requestedRunID),
+        getRunEvents(requestedRunID),
+      ]);
+      if (measurementsResult.status === "rejected") throw measurementsResult.reason;
+      const payload = measurementsResult.value;
       if (
         payload.run_id !== requestedRunID ||
         !Array.isArray(payload.sensors)
@@ -353,8 +625,28 @@ export function createRunChart({
       ) {
         return;
       }
+      let eventsError = null;
+      if (eventsResult.status === "fulfilled") {
+        try {
+          markers = normalizeEvents(
+            eventsResult.value,
+            requestedRunID,
+            new Date(payload.from).getTime(),
+          );
+        } catch (validationError) {
+          eventsError = validationError;
+        }
+      } else {
+        eventsError = eventsResult.reason;
+      }
       render(payload);
-      error.classList.add("d-none");
+      if (eventsError) {
+        console.error("Failed to load run events:", eventsError);
+        error.textContent = "Не удалось обновить метки. График и последние полученные метки сохранены.";
+        error.classList.remove("d-none");
+      } else {
+        error.classList.add("d-none");
+      }
     } catch (refreshError) {
       if (
         requestedVersion !== requestVersion ||
@@ -363,11 +655,86 @@ export function createRunChart({
         return;
       }
       console.error("Failed to load run measurements:", refreshError);
+      error.textContent = "Не удалось обновить график. Показаны последние полученные данные.";
       loading.classList.add("d-none");
       error.classList.remove("d-none");
       if (!hasResponse) empty.classList.remove("d-none");
     }
   }
 
-  return { show, refresh, hide, destroy };
+  canvas.addEventListener("click", (event) => {
+    if (Date.now() < suppressCanvasClickUntil) {
+      suppressCanvasClickUntil = 0;
+      return;
+    }
+    if (!chart || runStartedAt === null) return;
+    const bounds = canvas.getBoundingClientRect();
+    const pixel = event.clientX - bounds.left;
+    const pixelY = event.clientY - bounds.top;
+    if (
+      pixel < chart.chartArea.left ||
+      pixel > chart.chartArea.right ||
+      pixelY < chart.chartArea.top ||
+      pixelY > chart.chartArea.bottom
+    ) return;
+    if (!pointSelection) {
+      const marker = markers.find(
+        (candidate) =>
+          Math.abs(chart.scales.x.getPixelForValue(candidate.x) - pixel) <= 12,
+      );
+      if (marker) showMarkerDetails(marker);
+      return;
+    }
+    completePointSelection(chart.scales.x.getValueForPixel(pixel));
+  });
+  canvas.addEventListener("pointerdown", (event) => {
+    if (!pointSelection) return;
+    canvas.setPointerCapture?.(event.pointerId);
+  });
+  canvas.addEventListener("pointerup", (event) => {
+    if (!pointSelection || !chart || runStartedAt === null) return;
+    const bounds = canvas.getBoundingClientRect();
+    const pixel = Math.min(
+      chart.chartArea.right,
+      Math.max(chart.chartArea.left, event.clientX - bounds.left),
+    );
+    const value = Number.isFinite(chart.$pointSelectionPreview)
+      ? chart.$pointSelectionPreview
+      : chart.scales.x.getValueForPixel(pixel);
+    suppressCanvasClickUntil = Date.now() + 1000;
+    completePointSelection(value);
+  });
+  canvas.addEventListener("pointermove", (event) => {
+    if (!pointSelection || !chart || runStartedAt === null) return;
+    const bounds = canvas.getBoundingClientRect();
+    const pixel = event.clientX - bounds.left;
+    if (pixel < chart.chartArea.left || pixel > chart.chartArea.right) return;
+    const value = Math.min(
+      chart.scales.x.max,
+      Math.max(chart.scales.x.min, chart.scales.x.getValueForPixel(pixel)),
+    );
+    chart.$pointSelectionPreview = value;
+    selectionHint.querySelector("[data-event-pick-label]").textContent =
+      `Выбрано ${absoluteTimeFormatter.format(new Date(runStartedAt + value))}. Отпустите, чтобы подтвердить.`;
+    chart.draw();
+  });
+  selectionHint.addEventListener("click", (event) => {
+    if (event.target.closest('[data-action="cancel-event-pick"]')) cancelPointSelection();
+  });
+  markerDetails.addEventListener("click", (event) => {
+    if (event.target.closest('[data-action="close-marker-details"]')) {
+      hideMarkerDetails();
+    }
+  });
+
+  return {
+    show,
+    refresh,
+    hide,
+    destroy,
+    canSelectPoint,
+    beginPointSelection,
+    cancelPointSelection,
+    onAvailabilityChanged,
+  };
 }

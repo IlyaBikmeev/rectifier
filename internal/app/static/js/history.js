@@ -91,7 +91,7 @@ function deduplicateBatches(batches) {
   });
 }
 
-export function initHistory({ chart, pollingInterval, pageSize }) {
+export function initHistory({ chart, runEvents, pollingInterval, pageSize }) {
   const elements = {
     view: document.getElementById("history-view"),
     loading: document.getElementById("history-loading"),
@@ -104,6 +104,8 @@ export function initHistory({ chart, pollingInterval, pageSize }) {
     batchTemplate: document.getElementById("history-batch-template"),
     runTemplate: document.getElementById("history-run-template"),
     chartPanel: document.getElementById("history-chart-panel"),
+    addRunEvent: document.getElementById("add-history-run-event"),
+    addRunEventReason: document.getElementById("history-add-event-reason"),
   };
 
   const state = {
@@ -122,6 +124,29 @@ export function initHistory({ chart, pollingInterval, pageSize }) {
   let requestVersion = 0;
   let durationTimer = null;
   let pollingTimer = null;
+  let chartReady = false;
+
+  function updateAddEventAvailability() {
+    const selectedRun = findRun(state.selectedRunID);
+    const canAdd =
+      selectedRun !== null &&
+      (selectedRun.status === "RUNNING" || chartReady);
+    elements.addRunEvent.disabled = !canAdd;
+    elements.addRunEventReason.textContent = selectedRun === null
+      ? ""
+      : canAdd
+        ? ""
+        : "Добавление станет доступно после появления измерений.";
+    elements.addRunEventReason.classList.toggle(
+      "d-none",
+      elements.addRunEventReason.textContent === "",
+    );
+  }
+
+  chart.onAvailabilityChanged((available) => {
+    chartReady = available;
+    updateAddEventAvailability();
+  });
 
   function findRun(runID) {
     for (const batch of state.batches) {
@@ -263,6 +288,7 @@ export function initHistory({ chart, pollingInterval, pageSize }) {
     }
 
     restoreSelectedChart();
+    updateAddEventAvailability();
     updatePageControls();
   }
 
@@ -271,6 +297,7 @@ export function initHistory({ chart, pollingInterval, pageSize }) {
     state.nextOffset = 0;
     state.hasMore = true;
     state.selectedRunID = null;
+    chartReady = false;
     initialLoadFailed = false;
     pageLoadFailed = false;
     chart.hide();
@@ -372,6 +399,7 @@ export function initHistory({ chart, pollingInterval, pageSize }) {
   function closeChart(toggle) {
     chart.hide();
     state.selectedRunID = null;
+    chartReady = false;
     toggle.setAttribute("aria-expanded", "false");
     toggle.querySelector("[data-label]").textContent = "Показать график";
     toggle.focus();
@@ -391,6 +419,8 @@ export function initHistory({ chart, pollingInterval, pageSize }) {
     }
 
     state.selectedRunID = runID;
+    chartReady = false;
+    updateAddEventAvailability();
     toggle.setAttribute("aria-expanded", "true");
     toggle.querySelector("[data-label]").textContent = "Скрыть график";
     toggle.closest("[data-run-row]").append(elements.chartPanel);
@@ -414,6 +444,12 @@ export function initHistory({ chart, pollingInterval, pageSize }) {
         toggleChart(action);
         break;
     }
+  });
+
+  elements.addRunEvent.addEventListener("click", () => {
+    const run = findRun(state.selectedRunID);
+    if (!run || (run.status === "STOPPED" && !chartReady)) return;
+    runEvents.open({ runID: run.id, status: run.status, chart });
   });
 
   function setActive(active) {

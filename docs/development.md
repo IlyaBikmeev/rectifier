@@ -44,7 +44,8 @@ Frontend не требует package manager или сборки. `index.html` �
 | `router.js` | Hash routing и переключение views |
 | `sensors.js` | Polling, карточки и настройки датчиков |
 | `runs.js` | Process state, Batch, Start/Stop и таймер Run |
-| `chart.js` | Chart.js, measurements и состояния графика |
+| `run-events.js` | Modal, валидация и создание ручных меток Run |
+| `chart.js` | Chart.js, measurements, метки и выбор времени на графике |
 | `history.js` | История партий и Runs, пагинация и live-обновление |
 
 Пользовательские стили находятся в `/static/css/app.css`. Все frontend-assets
@@ -65,6 +66,8 @@ SQLite — источник истины для длительного сост�
 | POST | `/api/runs` | Запуск записи |
 | POST | `/api/runs/{id}/stop` | Остановка записи |
 | GET | `/api/runs/{id}/measurements` | Измерения и границы графика |
+| GET | `/api/runs/{id}/events` | Ручные метки Run в хронологическом порядке |
+| POST | `/api/runs/{id}/events` | Создание ручной метки Run |
 | GET | `/metrics` | Prometheus-совместимые метрики |
 
 `GET /api/batches` без query-параметров сохраняет полный список партий для
@@ -79,6 +82,12 @@ GET /api/batches?include=runs&limit=10&offset=0
 партиям, поэтому одна партия не разделяется между страницами. Клиент определяет
 наличие следующей страницы по размеру ответа: если элементов меньше `limit`,
 история закончилась.
+
+`POST /api/runs/{id}/events` принимает обязательный `text` длиной до 200
+символов после trim и необязательный `occurred_at` в RFC3339. Без
+`occurred_at` repository назначает текущее серверное время. Явное время должно
+попадать между `started_at` и текущим временем активного Run либо между
+`started_at` и `stopped_at` завершённого Run.
 
 ## Миграции и проверки
 

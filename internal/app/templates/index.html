@@ -157,7 +157,16 @@
                   <span id="active-run-sensors">0 датчиков</span>
                 </div>
               </div>
-              <div class="col-12 col-lg-auto d-grid">
+              <div class="col-12 col-lg-auto d-grid gap-2">
+                <button
+                  id="add-active-run-event"
+                  type="button"
+                  class="btn btn-outline-primary py-2 px-lg-5"
+                  disabled
+                >
+                  <i class="bi bi-bookmark-plus me-1" aria-hidden="true"></i>
+                  Добавить метку
+                </button>
                 <button
                   id="stop-run-button"
                   type="button"
@@ -171,6 +180,23 @@
             </div>
 
             <div id="run-chart-panel" class="d-none border-top mt-4 pt-4">
+              <div
+                id="run-chart-pick-hint"
+                class="alert alert-info d-none d-flex justify-content-between align-items-center gap-3 py-2 mb-3"
+                role="status"
+              >
+                <span data-event-pick-label>Текст сохранён. Нажмите на нужный момент графика.</span>
+                <button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0" data-action="cancel-event-pick">Отмена</button>
+              </div>
+              <div id="run-chart-marker-details" class="alert alert-primary d-none mb-3" role="status">
+                <div class="d-flex justify-content-between align-items-start gap-3">
+                  <div>
+                    <div class="fw-semibold" data-marker-text></div>
+                    <time class="small" data-marker-time></time>
+                  </div>
+                  <button type="button" class="btn-close" data-action="close-marker-details" aria-label="Закрыть описание метки"></button>
+                </div>
+              </div>
               <div
                 id="run-chart-error"
                 class="alert alert-warning d-none py-2 mb-3"
@@ -813,6 +839,29 @@
           id="history-chart-panel"
           class="d-none border-top mt-3 pt-3"
         >
+          <div class="d-flex flex-column align-items-end mb-3">
+            <button id="add-history-run-event" type="button" class="btn btn-sm btn-outline-primary" disabled>
+              <i class="bi bi-bookmark-plus me-1" aria-hidden="true"></i>Добавить метку
+            </button>
+            <div id="history-add-event-reason" class="small text-secondary mt-1">Загружаем график…</div>
+          </div>
+          <div
+            id="history-chart-pick-hint"
+            class="alert alert-info d-none d-flex justify-content-between align-items-center gap-3 py-2 mb-3"
+            role="status"
+          >
+            <span data-event-pick-label>Текст сохранён. Нажмите на нужный момент графика.</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0" data-action="cancel-event-pick">Отмена</button>
+          </div>
+          <div id="history-chart-marker-details" class="alert alert-primary d-none mb-3" role="status">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+              <div>
+                <div class="fw-semibold" data-marker-text></div>
+                <time class="small" data-marker-time></time>
+              </div>
+              <button type="button" class="btn-close" data-action="close-marker-details" aria-label="Закрыть описание метки"></button>
+            </div>
+          </div>
           <div
             id="history-chart-error"
             class="alert alert-warning d-none py-2 mb-3"
@@ -848,6 +897,57 @@
         </div>
       </section>
     </main>
+
+    <div
+      class="modal fade"
+      id="run-event-modal"
+      tabindex="-1"
+      aria-labelledby="run-event-title"
+      aria-describedby="run-event-time-description"
+    >
+      <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+        <form id="run-event-form" class="modal-content" novalidate>
+          <div class="modal-header">
+            <h2 class="modal-title fs-5" id="run-event-title">Новая метка</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+          </div>
+          <div class="modal-body">
+            <div id="run-event-error" class="alert alert-danger d-none" role="alert"></div>
+            <div class="mb-3">
+              <label for="run-event-text" class="form-label">Что произошло</label>
+              <textarea id="run-event-text" class="form-control" rows="3" maxlength="200" required></textarea>
+              <div class="invalid-feedback">Введите текст метки.</div>
+              <div class="form-text">Обязательное поле, до 200 символов.</div>
+            </div>
+            <div class="border rounded p-3">
+              <div class="small text-secondary mb-1">Время метки</div>
+              <div id="run-event-time-description" class="fw-semibold">Сейчас</div>
+              <button id="pick-run-event-time" type="button" class="btn btn-sm btn-outline-secondary mt-3">
+                <i class="bi bi-crosshair me-1" aria-hidden="true"></i>
+                Выбрать на графике
+              </button>
+              <div id="run-event-pick-unavailable" class="form-text d-none">Выбор станет доступен после появления измерений.</div>
+            </div>
+          </div>
+          <div class="modal-footer flex-column align-items-stretch">
+            <div class="d-flex flex-column-reverse flex-sm-row justify-content-sm-end gap-2 w-100">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+              <button id="submit-run-event" type="submit" class="btn btn-primary">Добавить</button>
+            </div>
+            <div id="run-event-disabled-reason" class="small text-secondary text-center text-sm-end"></div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+      <div id="run-event-success" class="toast text-bg-success border-0" role="status" aria-live="polite" aria-atomic="true">
+        <div class="d-flex">
+          <div class="toast-body">Метка добавлена</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Закрыть"></button>
+        </div>
+      </div>
+    </div>
 
     <script src="/static/bootstrap/js/bootstrap.bundle.min.js"></script>
     <script src="/static/chartjs/chart.umd.min.js"></script>

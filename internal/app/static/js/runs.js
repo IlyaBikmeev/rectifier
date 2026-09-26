@@ -6,7 +6,7 @@ import {
   stopRun,
 } from "./api.js";
 
-export function initRuns({ chart, pollingInterval }) {
+export function initRuns({ chart, runEvents, pollingInterval }) {
   const lastReadFormatter = new Intl.DateTimeFormat("ru-RU", {
     hour: "2-digit",
     minute: "2-digit",
@@ -22,6 +22,7 @@ export function initRuns({ chart, pollingInterval }) {
   );
   const startRunButton = document.getElementById("open-start-run");
   const stopRunButton = document.getElementById("stop-run-button");
+  const addRunEventButton = document.getElementById("add-active-run-event");
   const stopRunModalElement = document.getElementById("stop-run-modal");
   const stopRunModal =
     window.bootstrap.Modal.getOrCreateInstance(stopRunModalElement);
@@ -111,6 +112,11 @@ export function initRuns({ chart, pollingInterval }) {
     }
 
     stopRunButton.disabled = Boolean(reason);
+    addRunEventButton.disabled =
+      stopRunSubmitting ||
+      !processSynchronized ||
+      confirmedProcess.status !== "RUNNING" ||
+      !confirmedProcess.active_run;
     stopRunSubmit.disabled = Boolean(reason);
     stopRunSubmit.innerHTML = stopRunSubmitting
       ? '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Останавливаем запись…'
@@ -344,6 +350,19 @@ export function initRuns({ chart, pollingInterval }) {
       updateStopRunAvailability();
       await loadProcess();
     }
+  });
+
+  addRunEventButton.addEventListener("click", () => {
+    if (
+      addRunEventButton.disabled ||
+      confirmedProcess.status !== "RUNNING" ||
+      !confirmedProcess.active_run
+    ) return;
+    runEvents.open({
+      runID: confirmedProcess.active_run.id,
+      status: "RUNNING",
+      chart,
+    });
   });
 
   function renderRunSensorOptions(sensors) {

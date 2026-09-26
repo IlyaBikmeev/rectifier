@@ -73,3 +73,17 @@ export function getRunMeasurements(runID) {
     { cache: "no-store" },
   );
 }
+
+export function getRunEvents(runID) {
+  return requestJSON(`/api/runs/${encodeURIComponent(runID)}/events`, {
+    cache: "no-store",
+  });
+}
+
+export function createRunEvent(runID, event) {
+  return requestJSON(`/api/runs/${encodeURIComponent(runID)}/events`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(event),
+  });
+}
