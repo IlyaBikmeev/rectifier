@@ -8,14 +8,6 @@ const colors = [
   "#6f42c1",
   "#0aa2c0",
 ];
-const pointStyles = [
-  "circle",
-  "rect",
-  "triangle",
-  "rectRot",
-  "crossRot",
-  "star",
-];
 const absoluteTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
   day: "2-digit",
   month: "2-digit",
@@ -23,6 +15,24 @@ const absoluteTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
   hour: "2-digit",
   minute: "2-digit",
   second: "2-digit",
+});
+const shortTickFormatter = new Intl.DateTimeFormat("ru-RU", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+const longTickFormatter = new Intl.DateTimeFormat("ru-RU", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+const multiDayTickFormatter = new Intl.DateTimeFormat("ru-RU", {
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
 });
 
 function formatDuration(totalMilliseconds) {
@@ -36,20 +46,39 @@ function formatDuration(totalMilliseconds) {
   return `${hours}:${minutes}:${seconds}`;
 }
 
-function formatTick(elapsedMilliseconds, runDuration) {
-  const totalMinutes = Math.max(
-    0,
-    Math.floor(elapsedMilliseconds / 60000),
-  );
-  const seconds = String(
-    Math.max(0, Math.floor(elapsedMilliseconds / 1000)) % 60,
-  ).padStart(2, "0");
+function formatTick(elapsedMilliseconds, runDuration, startedAt) {
+  const measuredAt = new Date(startedAt + elapsedMilliseconds);
   if (runDuration < 3600000) {
-    return `${String(totalMinutes).padStart(2, "0")}:${seconds}`;
+    return shortTickFormatter.format(measuredAt);
   }
-  const hours = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
-  const minutes = String(totalMinutes % 60).padStart(2, "0");
-  return `${hours}:${minutes}`;
+  if (runDuration < 86400000) return longTickFormatter.format(measuredAt);
+  return multiDayTickFormatter.format(measuredAt);
+}
+
+function formatTooltipTitle(items) {
+  if (items.length === 0) return "";
+
+  const points = items
+    .map((item) => item.raw)
+    .sort((left, right) => left.measuredAt - right.measuredAt);
+  const first = points[0];
+  const last = points[points.length - 1];
+  const firstAbsolute = absoluteTimeFormatter.format(
+    new Date(first.measuredAt),
+  );
+  const lastAbsolute = absoluteTimeFormatter.format(
+    new Date(last.measuredAt),
+  );
+  const elapsed =
+    first.x === last.x
+      ? formatDuration(first.x)
+      : `${formatDuration(first.x)}–${formatDuration(last.x)}`;
+  const absolute =
+    first.measuredAt === last.measuredAt
+      ? firstAbsolute
+      : `${firstAbsolute}–${lastAbsolute}`;
+
+  return [`От старта ${elapsed}`, absolute];
 }
 
 export function createRunChart({
@@ -148,11 +177,11 @@ export function createRunChart({
         parsing: false,
         borderColor: colors[paletteIndex],
         backgroundColor: colors[paletteIndex],
-        pointStyle: pointStyles[paletteIndex],
-        borderWidth: 2,
-        pointRadius: 2,
-        pointHoverRadius: 5,
-        tension: 0.15,
+        borderWidth: 1.5,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        pointHitRadius: 12,
+        tension: 0,
         fill: false,
         hidden: hiddenSensorIDs.has(sensor.hardware_id),
       };
@@ -172,7 +201,7 @@ export function createRunChart({
       chart.data.datasets = datasets;
       chart.options.scales.x.max = duration;
       chart.options.scales.x.ticks.callback = (value) =>
-        formatTick(Number(value), duration);
+        formatTick(Number(value), duration, from);
       chart.update("none");
       return;
     }
@@ -185,33 +214,58 @@ export function createRunChart({
         maintainAspectRatio: false,
         animation: false,
         normalized: true,
-        interaction: { mode: "nearest", intersect: false },
+        interaction: { mode: "index", intersect: false, axis: "x" },
         scales: {
           x: {
             type: "linear",
             min: 0,
             max: duration,
-            title: { display: true, text: "Время от начала перегона" },
+            border: { display: false },
+            grid: {
+              color: "rgba(108, 117, 125, 0.12)",
+              tickLength: 4,
+            },
+            title: { display: true, text: "Время" },
             ticks: {
-              callback: (value) => formatTick(Number(value), duration),
+              color: "#6c757d",
+              maxRotation: 0,
+              callback: (value) =>
+                formatTick(Number(value), duration, from),
             },
           },
           y: {
+            beginAtZero: false,
+            grace: "5%",
+            border: { display: false },
+            grid: {
+              color: "rgba(108, 117, 125, 0.12)",
+              tickLength: 4,
+            },
             title: { display: true, text: "Температура, °C" },
+            ticks: { color: "#6c757d" },
           },
         },
         plugins: {
           legend: {
             position: "bottom",
-            labels: { usePointStyle: true },
+            labels: {
+              usePointStyle: true,
+              pointStyle: "line",
+              boxWidth: 28,
+              boxHeight: 2,
+              padding: 16,
+              color: "#6c757d",
+            },
           },
           tooltip: {
+            position: "nearest",
+            padding: 10,
+            bodySpacing: 4,
+            usePointStyle: true,
+            boxWidth: 8,
+            boxHeight: 8,
             callbacks: {
-              title: (items) => {
-                if (items.length === 0) return "";
-                const point = items[0].raw;
-                return `${formatDuration(point.x)} · ${absoluteTimeFormatter.format(new Date(point.measuredAt))}`;
-              },
+              title: formatTooltipTitle,
               label: (context) =>
                 `${context.dataset.label}: ${context.parsed.y.toFixed(1)} °C`,
             },
