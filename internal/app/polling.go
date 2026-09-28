@@ -2,7 +2,7 @@ package app
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 	"rectifier/internal/registry"
 	"rectifier/internal/storage"
 	"time"
@@ -39,7 +39,7 @@ func pollSensors(ctx context.Context, appState *AppState, sensorRegistry registr
 
 	sensors, err := sensorRegistry.Sensors()
 	if err != nil {
-		//TODO handle error
+		slog.Warn("sensor discovery failed", "error", err)
 		return
 	}
 
@@ -59,10 +59,15 @@ func pollSensors(ctx context.Context, appState *AppState, sensorRegistry registr
 			appState.mutex.Lock()
 
 			sensorState := appState.sensors[discoveredSensor.ID()]
+			previousStatus := sensorState.status
 			sensorState.status = "ERROR"
 			appState.sensors[discoveredSensor.ID()] = sensorState
 
 			appState.mutex.Unlock()
+
+			if previousStatus != "ERROR" {
+				slog.Warn("sensor read failed", "sensor_id", discoveredSensor.ID(), "error", err)
+			}
 
 			continue
 		}
@@ -72,12 +77,17 @@ func pollSensors(ctx context.Context, appState *AppState, sensorRegistry registr
 		appState.mutex.Lock()
 
 		sensorState := appState.sensors[discoveredSensor.ID()]
+		previousStatus := sensorState.status
 		sensorState.lastSuccessfulRead = measuredAt
 		sensorState.status = "OK"
 		sensorState.temperature = temperature
 		appState.sensors[discoveredSensor.ID()] = sensorState
 
 		appState.mutex.Unlock()
+
+		if previousStatus == "ERROR" {
+			slog.Info("sensor recovered", "sensor_id", discoveredSensor.ID())
+		}
 
 		if _, selected := selectedSensors[discoveredSensor.ID()]; selected {
 			measurements = append(measurements, storage.Measurement{
@@ -90,6 +100,10 @@ func pollSensors(ctx context.Context, appState *AppState, sensorRegistry registr
 	}
 
 	if err := measurementRepository.Save(ctx, measurements); err != nil {
-		fmt.Printf("save measurements: %v\n", err)
+		attrs := []any{"error", err}
+		if process.activeRun != nil {
+			attrs = append(attrs, "run_id", process.activeRun.id)
+		}
+		slog.Error("save measurements failed", attrs...)
 	}
 }
