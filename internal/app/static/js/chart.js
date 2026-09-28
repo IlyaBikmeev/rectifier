@@ -441,6 +441,7 @@ export function createRunChart({
   let markers = [];
   let selectedMarkerID = null;
   let lastMarkerPick = null;
+  let touchTooltipCleanupTimer = null;
   const availabilityListeners = new Set();
   const hiddenSensorIDs = new Set();
   const emptyLabel = empty.querySelector("[data-chart-empty-label]");
@@ -592,6 +593,10 @@ export function createRunChart({
   function destroyChart() {
     if (!chart) return;
     setTouchRangeMode(false);
+    if (touchTooltipCleanupTimer !== null) {
+      window.clearTimeout(touchTooltipCleanupTimer);
+      touchTooltipCleanupTimer = null;
+    }
     chart.destroy();
     chart = null;
     renderViewportControls();
@@ -713,6 +718,26 @@ export function createRunChart({
     const marker = candidates[index];
     lastMarkerPick = { pixel, markerID: marker.id, at: Date.now() };
     return marker;
+  }
+
+  function clearTransientChartInteraction() {
+    if (!chart) return;
+    chart.$hoveredRunMarker = null;
+    chart.$crosshair = null;
+    chart.setActiveElements([]);
+    chart.tooltip?.setActiveElements([], { x: 0, y: 0 });
+    chart.draw();
+  }
+
+  function scheduleTouchTooltipCleanup() {
+    if (touchTooltipCleanupTimer !== null) {
+      window.clearTimeout(touchTooltipCleanupTimer);
+    }
+    touchTooltipCleanupTimer = window.setTimeout(() => {
+      touchTooltipCleanupTimer = null;
+      if (rangeSelection || pointSelection) return;
+      clearTransientChartInteraction();
+    }, 1200);
   }
 
   function setTemperatureInteractionEnabled(enabled) {
@@ -1192,6 +1217,13 @@ export function createRunChart({
     canvas.setPointerCapture?.(event.pointerId);
   });
   canvas.addEventListener("pointerup", (event) => {
+    if (
+      event.pointerType === "touch" &&
+      !pointSelection &&
+      !rangeSelection
+    ) {
+      scheduleTouchTooltipCleanup();
+    }
     if (pointSelection) {
       if (!chart || runStartedAt === null) return;
       const pixel = clampChartX(canvasPoint(event).x);
