@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"rectifier/internal/storage"
 	"strconv"
@@ -140,6 +141,7 @@ func handleCreateRun(w http.ResponseWriter, r *http.Request, appState *AppState,
 	})
 
 	if err != nil {
+		slog.Error("create run failed", "batch_id", request.BatchID, "type", request.Type, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -152,6 +154,7 @@ func handleCreateRun(w http.ResponseWriter, r *http.Request, appState *AppState,
 		startedAt:         run.StartedAt,
 		sensorHardwareIDs: run.SensorHardwareIDs,
 	})
+	slog.Info("run started", "run_id", run.ID, "batch_id", run.BatchID, "type", run.Type, "sensor_count", len(run.SensorHardwareIDs))
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusCreated)
@@ -168,7 +171,7 @@ func handleCreateRun(w http.ResponseWriter, r *http.Request, appState *AppState,
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		fmt.Printf("Encode create run response: %v\n", err)
+		slog.Error("encode create run response failed", "run_id", run.ID, "error", err)
 	}
 }
 
@@ -198,15 +201,18 @@ func handleStopRun(
 			return
 		}
 
+		slog.Error("stop run failed", "run_id", id, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if !appState.StopRun(id) {
+		slog.Warn("run state changed while stopping", "run_id", id)
 		http.Error(w, "run state changed concurrently", http.StatusConflict)
 		return
 	}
 
+	slog.Info("run stopped", "run_id", id)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -278,7 +284,7 @@ func handleRunMeasurements(
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		fmt.Printf("Encode run measurements response: %v\n", err)
+		slog.Error("encode run measurements response failed", "run_id", runID, "error", err)
 	}
 }
 
