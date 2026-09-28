@@ -15,6 +15,7 @@ import (
 )
 
 func Run(
+	version string,
 	sensorRegistry registry.SensorRegistry,
 	sensorRepository storage.SensorRepository,
 	batchRepository storage.BatchRepository,
@@ -56,6 +57,7 @@ func Run(
 	go runSensorPolling(appCtx, appState, sensorRegistry, measurementRepository)
 
 	router := newRouter(
+		version,
 		appState,
 		sensorRepository,
 		batchRepository,
