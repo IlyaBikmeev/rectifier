@@ -23,6 +23,12 @@ const supportedRanges = new Set([
 const supportedYModes = new Set(["fixed", "auto"]);
 const viewportListeners = new Set();
 const minimumRangeSelectionPixels = 8;
+const touchRangeSelectionAvailable =
+  navigator.maxTouchPoints > 0 || window.matchMedia("(pointer: coarse)").matches;
+
+function isNarrowChartViewport() {
+  return window.matchMedia("(max-width: 575.98px)").matches;
+}
 
 function loadViewportSettings() {
   try {
@@ -329,7 +335,9 @@ const runMarkersPlugin = {
     }
 
     ctx.font = "11px sans-serif";
-    const laneEnds = [-Infinity, -Infinity, -Infinity];
+    const narrowViewport = chart.width < 576;
+    const markerLabelWidth = narrowViewport ? 80 : 110;
+    const laneEnds = Array(narrowViewport ? 2 : 3).fill(-Infinity);
     for (const marker of markers) {
       const x = chart.scales.x.getPixelForValue(marker.x);
       if (x < chartArea.left || x > chartArea.right) continue;
@@ -344,7 +352,7 @@ const runMarkersPlugin = {
       ctx.moveTo(x, chartArea.top);
       ctx.lineTo(x, chartArea.bottom);
       ctx.stroke();
-      const label = truncateLabel(ctx, marker.text, 110);
+      const label = truncateLabel(ctx, marker.text, markerLabelWidth);
       const width = ctx.measureText(label).width + 8;
       const left = Math.min(Math.max(x + 3, chartArea.left), chartArea.right - width);
       const lane = laneEnds.findIndex((end) => left > end + 4);
@@ -415,6 +423,7 @@ export function createRunChart({
   let responseTo = null;
   let manualWindow = null;
   let rangeSelection = null;
+  let touchRangeMode = false;
   let pointSelection = null;
   let previousCanvasTouchAction = null;
   let suppressCanvasClickUntil = 0;
@@ -423,6 +432,9 @@ export function createRunChart({
   const hiddenSensorIDs = new Set();
   const emptyLabel = empty.querySelector("[data-chart-empty-label]");
   const defaultEmptyLabel = emptyLabel.textContent;
+  const touchRangePrompt = panel.querySelector(
+    "[data-chart-touch-range-prompt]",
+  );
 
   function canvasPoint(event) {
     const bounds = canvas.getBoundingClientRect();
@@ -494,6 +506,20 @@ export function createRunChart({
       responseFrom === null || responseTo === null
         ? "—"
         : formatVisibleRange(responseFrom, responseTo);
+
+    const touchControls = viewportControls.querySelector(
+      "[data-chart-touch-range-controls]",
+    );
+    touchControls.classList.toggle(
+      "d-none",
+      !touchRangeSelectionAvailable || touchRangeMode,
+    );
+    const touchButton = touchControls.querySelector(
+      '[data-action="toggle-touch-range"]',
+    );
+    touchButton.setAttribute("aria-pressed", String(touchRangeMode));
+    touchButton.disabled = pointSelection !== null || chart === null;
+    touchRangePrompt.classList.toggle("d-none", !touchRangeMode);
   }
 
   function applyViewport() {
@@ -516,8 +542,17 @@ export function createRunChart({
   viewportControls.addEventListener("click", (event) => {
     const rangeButton = event.target.closest("[data-chart-range]");
     if (rangeButton) {
+      setTouchRangeMode(false);
       manualWindow = null;
       updateViewportSettings({ range: rangeButton.dataset.chartRange });
+      return;
+    }
+    if (event.target.closest('[data-action="toggle-touch-range"]')) {
+      setTouchRangeMode(!touchRangeMode);
+      return;
+    }
+    if (event.target.closest('[data-action="cancel-touch-range"]')) {
+      setTouchRangeMode(false);
       return;
     }
     const yModeButton = event.target.closest("[data-chart-y-mode]");
@@ -526,7 +561,10 @@ export function createRunChart({
     }
   });
   function viewportChanged(_settings, patch) {
-    if (patch.range !== undefined) manualWindow = null;
+    if (patch.range !== undefined) {
+      setTouchRangeMode(false);
+      manualWindow = null;
+    }
     renderViewportControls();
     if (patch.range !== undefined && runID !== null) {
       refresh();
@@ -540,8 +578,10 @@ export function createRunChart({
 
   function destroyChart() {
     if (!chart) return;
+    setTouchRangeMode(false);
     chart.destroy();
     chart = null;
+    renderViewportControls();
     notifyAvailability();
   }
 
@@ -662,6 +702,20 @@ export function createRunChart({
     previousCanvasTouchAction = null;
   }
 
+  function setTouchRangeMode(enabled) {
+    const next = Boolean(
+      enabled && touchRangeSelectionAvailable && !pointSelection && chart,
+    );
+    if (touchRangeMode === next) {
+      renderViewportControls();
+      return;
+    }
+    if (!next) cancelRangeSelection();
+    touchRangeMode = next;
+    setTouchSelectionEnabled(next || pointSelection !== null);
+    renderViewportControls();
+  }
+
   function cancelPointSelection(notify = true) {
     if (!pointSelection) return;
     const cancelled = pointSelection.onCancelled;
@@ -673,11 +727,13 @@ export function createRunChart({
       setTemperatureInteractionEnabled(true);
     }
     selectionHint.classList.add("d-none");
+    renderViewportControls();
     if (notify) cancelled();
   }
 
   function beginPointSelection(onSelected, onCancelled) {
     if (!canSelectPoint()) return false;
+    setTouchRangeMode(false);
     cancelPointSelection(false);
     pointSelection = { onSelected, onCancelled };
     chart.$crosshair = null;
@@ -685,6 +741,7 @@ export function createRunChart({
     chart.$pointSelectionActive = true;
     setTouchSelectionEnabled(true);
     setTemperatureInteractionEnabled(false);
+    renderViewportControls();
     // TODO: Adapt selection hints by pointer type: click for mouse, release for touch.
     selectionHint.querySelector("[data-event-pick-label]").textContent =
       "Текст сохранён. Коснитесь графика и проведите до нужного момента.";
@@ -711,6 +768,7 @@ export function createRunChart({
     chart.$pointSelectionActive = false;
     setTemperatureInteractionEnabled(true);
     selectionHint.classList.add("d-none");
+    renderViewportControls();
     callback(selected);
   }
 
@@ -846,6 +904,8 @@ export function createRunChart({
         interaction: { mode: "index", intersect: false, axis: "x" },
         onResize(resizedChart) {
           resizedChart.$crosshair = null;
+          resizedChart.options.scales.x.ticks.maxTicksLimit =
+            isNarrowChartViewport() ? 4 : undefined;
           cancelRangeSelection();
         },
         scales: {
@@ -862,6 +922,7 @@ export function createRunChart({
             ticks: {
               color: "#6c757d",
               maxRotation: 0,
+              maxTicksLimit: isNarrowChartViewport() ? 4 : undefined,
               callback: (value) =>
                 formatTick(Number(value), duration, runStartedAt),
             },
@@ -1054,9 +1115,10 @@ export function createRunChart({
       canvas.setPointerCapture?.(event.pointerId);
       return;
     }
+    const isMouseSelection = event.pointerType === "mouse" && event.button === 0;
+    const isTouchSelection = event.pointerType === "touch" && touchRangeMode;
     if (
-      event.pointerType !== "mouse" ||
-      event.button !== 0 ||
+      (!isMouseSelection && !isTouchSelection) ||
       !chart ||
       !chart.chartArea
     ) return;
@@ -1070,7 +1132,9 @@ export function createRunChart({
     const clampedX = clampChartX(x);
     rangeSelection = {
       pointerId: event.pointerId,
+      pointerType: event.pointerType,
       startX: clampedX,
+      startY: y,
       currentX: clampedX,
       active: false,
     };
@@ -1122,9 +1186,12 @@ export function createRunChart({
     // The X scale stores elapsed milliseconds from runStartedAt, not Unix time.
     const from = runStartedAt + fromValue;
     const to = runStartedAt + toValue;
+    const completedTouchSelection = rangeSelection.pointerType === "touch";
     cancelRangeSelection();
     suppressCanvasClickUntil = Date.now() + 1000;
     if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return;
+
+    if (completedTouchSelection) setTouchRangeMode(false);
 
     manualWindow = { from, to };
     hideMarkerDetails();
@@ -1154,7 +1221,16 @@ export function createRunChart({
     const horizontalDelta = Math.abs(
       rangeSelection.currentX - rangeSelection.startX,
     );
-    if (!rangeSelection.active && horizontalDelta >= minimumRangeSelectionPixels) {
+    const verticalDelta = Math.abs(
+      canvasPoint(event).y - rangeSelection.startY,
+    );
+    const directionAccepted =
+      rangeSelection.pointerType === "mouse" || horizontalDelta > verticalDelta;
+    if (
+      !rangeSelection.active &&
+      horizontalDelta >= minimumRangeSelectionPixels &&
+      directionAccepted
+    ) {
       rangeSelection.active = true;
     }
     if (rangeSelection.active) chart.draw();
@@ -1167,6 +1243,11 @@ export function createRunChart({
   });
   selectionHint.addEventListener("click", (event) => {
     if (event.target.closest('[data-action="cancel-event-pick"]')) cancelPointSelection();
+  });
+  touchRangePrompt.addEventListener("click", (event) => {
+    if (event.target.closest('[data-action="cancel-touch-range"]')) {
+      setTouchRangeMode(false);
+    }
   });
   markerDetails.addEventListener("click", (event) => {
     if (event.target.closest('[data-action="close-marker-details"]')) {
