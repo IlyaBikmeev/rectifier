@@ -35,7 +35,7 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           archive="rectifier_${version}_linux_arm64.tar.gz"
           stage="$(mktemp -d)"
-          go build -trimpath -ldflags="-s -w" -o "$stage/rectifier" ./cmd/rectifier
+          go build -trimpath -ldflags="-s -w -X main.version=$GITHUB_REF_NAME" -o "$stage/rectifier" ./cmd/rectifier
           install -m 0755 packaging/install.sh "$stage/install.sh"
           install -m 0644 packaging/rectifier.service "$stage/rectifier.service"
           tar -C "$stage" -czf "$archive" rectifier install.sh rectifier.service
