@@ -222,15 +222,6 @@ function formatVisibleRange(from, to) {
   return `${formatter.format(fromDate)} — ${formatter.format(toDate)}`;
 }
 
-function truncateLabel(context, text, maxWidth) {
-  if (context.measureText(text).width <= maxWidth) return text;
-  let result = text;
-  while (result.length > 1 && context.measureText(`${result}…`).width > maxWidth) {
-    result = result.slice(0, -1);
-  }
-  return `${result}…`;
-}
-
 function wrapLabel(context, text, maxWidth) {
   const lines = [];
   let line = "";
@@ -258,6 +249,22 @@ function wrapLabel(context, text, maxWidth) {
   return lines;
 }
 
+function markersNearPixel(chart, pixel, hitRadius) {
+  return (chart.$runMarkers || [])
+    .map((marker) => ({
+      marker,
+      distance: Math.abs(chart.scales.x.getPixelForValue(marker.x) - pixel),
+    }))
+    .filter((candidate) => candidate.distance <= hitRadius)
+    .sort(
+      (left, right) =>
+        left.distance - right.distance ||
+        left.marker.occurredAt - right.marker.occurredAt ||
+        left.marker.id - right.marker.id,
+    )
+    .map((candidate) => candidate.marker);
+}
+
 const runMarkersPlugin = {
   id: "runMarkers",
   afterEvent(chart, args) {
@@ -277,10 +284,14 @@ const runMarkersPlugin = {
       args.event.y <= chart.chartArea.bottom
     ) {
       chart.$crosshair = { x: args.event.x, y: args.event.y };
-      chart.$hoveredRunMarker = (chart.$runMarkers || []).find((marker) =>
-        Math.abs(chart.scales.x.getPixelForValue(marker.x) - args.event.x) <= 6 &&
-        args.event.y >= chart.chartArea.top && args.event.y <= chart.chartArea.bottom,
-      ) || null;
+      chart.$hoveredRunMarker = markersNearPixel(chart, args.event.x, 8)[0] || null;
+      if (chart.$hoveredRunMarker) {
+        chart.setActiveElements([]);
+        chart.tooltip?.setActiveElements([], {
+          x: args.event.x,
+          y: args.event.y,
+        });
+      }
     }
     if (
       previous !== chart.$hoveredRunMarker ||
@@ -334,34 +345,34 @@ const runMarkersPlugin = {
       ctx.strokeRect(left, chartArea.top, right - left, chartArea.bottom - chartArea.top);
     }
 
-    ctx.font = "11px sans-serif";
-    const narrowViewport = chart.width < 576;
-    const markerLabelWidth = narrowViewport ? 80 : 110;
-    const laneEnds = Array(narrowViewport ? 2 : 3).fill(-Infinity);
     for (const marker of markers) {
       const x = chart.scales.x.getPixelForValue(marker.x);
       if (x < chartArea.left || x > chartArea.right) continue;
-      const active =
-        marker === chart.$hoveredRunMarker ||
-        marker === chart.$selectedRunMarker;
-      ctx.strokeStyle = active
-        ? "rgba(13, 110, 253, 0.9)"
-        : "rgba(33, 37, 41, 0.5)";
-      ctx.lineWidth = active ? 1.5 : 1;
+      const selected = marker === chart.$selectedRunMarker;
+      const hovered = marker === chart.$hoveredRunMarker;
+      const active = selected || hovered;
+      const markerY = chartArea.top + 8;
+      ctx.strokeStyle = active ? "#0d6efd" : "rgba(33, 37, 41, 0.45)";
+      ctx.lineWidth = selected ? 2 : active ? 1.5 : 1;
       ctx.beginPath();
-      ctx.moveTo(x, chartArea.top);
+      ctx.moveTo(x, markerY);
       ctx.lineTo(x, chartArea.bottom);
       ctx.stroke();
-      const label = truncateLabel(ctx, marker.text, markerLabelWidth);
-      const width = ctx.measureText(label).width + 8;
-      const left = Math.min(Math.max(x + 3, chartArea.left), chartArea.right - width);
-      const lane = laneEnds.findIndex((end) => left > end + 4);
-      if (lane === -1) continue;
-      laneEnds[lane] = left + width;
-      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-      ctx.fillRect(left, chartArea.top + 3 + lane * 19, width, 17);
-      ctx.fillStyle = active ? "#0d6efd" : "#212529";
-      ctx.fillText(label, left + 4, chartArea.top + 15 + lane * 19);
+
+      ctx.beginPath();
+      ctx.arc(x, markerY, selected ? 5 : active ? 4.5 : 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = active ? "#0d6efd" : "#495057";
+      ctx.fill();
+      if (selected) {
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x, markerY, 6.5, 0, Math.PI * 2);
+        ctx.strokeStyle = "#0d6efd";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
     }
 
     if (Number.isFinite(chart.$pointSelectionPreview)) {
@@ -381,18 +392,18 @@ const runMarkersPlugin = {
       const width = Math.min(320, chartArea.right - chartArea.left);
       const textLines = wrapLabel(ctx, hovered.text, width - 16);
       const timeLabel = absoluteTimeFormatter.format(new Date(hovered.occurredAt));
-      const height = textLines.length * 17 + 29;
+      const height = textLines.length * 17 + 32;
       const x = chart.scales.x.getPixelForValue(hovered.x);
       const left = Math.min(Math.max(x + 8, chartArea.left), chartArea.right - width);
       const top = chartArea.top + 25;
       ctx.fillStyle = "rgba(33, 37, 41, 0.94)";
       ctx.fillRect(left, top, width, height);
+      ctx.fillStyle = "#dee2e6";
+      ctx.fillText(timeLabel, left + 8, top + 16);
       ctx.fillStyle = "#fff";
       textLines.forEach((line, index) => {
-        ctx.fillText(line, left + 8, top + 17 + index * 17);
+        ctx.fillText(line, left + 8, top + 35 + index * 17);
       });
-      ctx.fillStyle = "#dee2e6";
-      ctx.fillText(timeLabel, left + 8, top + height - 9);
     }
 
     ctx.restore();
@@ -428,6 +439,8 @@ export function createRunChart({
   let previousCanvasTouchAction = null;
   let suppressCanvasClickUntil = 0;
   let markers = [];
+  let selectedMarkerID = null;
+  let lastMarkerPick = null;
   const availabilityListeners = new Set();
   const hiddenSensorIDs = new Set();
   const emptyLabel = empty.querySelector("[data-chart-empty-label]");
@@ -624,6 +637,8 @@ export function createRunChart({
   }
 
   function hideMarkerDetails() {
+    selectedMarkerID = null;
+    lastMarkerPick = null;
     markerDetails.classList.add("d-none");
     if (chart) {
       chart.$selectedRunMarker = null;
@@ -632,6 +647,7 @@ export function createRunChart({
   }
 
   function showMarkerDetails(marker) {
+    selectedMarkerID = marker.id;
     chart.$selectedRunMarker = marker;
     markerDetails.querySelector("[data-marker-text]").textContent = marker.text;
     const markerTime = markerDetails.querySelector("[data-marker-time]");
@@ -665,6 +681,38 @@ export function createRunChart({
       showMarkerDetails(replacement);
     }
     return true;
+  }
+
+  function syncSelectedMarker() {
+    if (!chart || selectedMarkerID === null) return;
+    const selected = markers.find((marker) => marker.id === selectedMarkerID);
+    if (!selected) {
+      hideMarkerDetails();
+      return;
+    }
+    chart.$selectedRunMarker = selected;
+  }
+
+  function markerAtPixel(pixel) {
+    const candidates = markersNearPixel(chart, pixel, 22);
+    if (candidates.length === 0) {
+      lastMarkerPick = null;
+      return null;
+    }
+    const repeatedPick =
+      lastMarkerPick &&
+      Math.abs(lastMarkerPick.pixel - pixel) <= 22 &&
+      Date.now() - lastMarkerPick.at < 2500;
+    let index = 0;
+    if (repeatedPick) {
+      const previousIndex = candidates.findIndex(
+        (candidate) => candidate.id === lastMarkerPick.markerID,
+      );
+      if (previousIndex !== -1) index = (previousIndex + 1) % candidates.length;
+    }
+    const marker = candidates[index];
+    lastMarkerPick = { pixel, markerID: marker.id, at: Date.now() };
+    return marker;
   }
 
   function setTemperatureInteractionEnabled(enabled) {
@@ -887,6 +935,7 @@ export function createRunChart({
       chart.options.scales.x.ticks.callback = (value) =>
         formatTick(Number(value), duration, runStartedAt);
       chart.$runMarkers = visibleMarkers();
+      syncSelectedMarker();
       applyViewport();
       notifyAvailability();
       return;
@@ -976,6 +1025,7 @@ export function createRunChart({
       },
     });
     chart.$runMarkers = visibleMarkers();
+    syncSelectedMarker();
     applyViewport();
     notifyAvailability();
   }
@@ -1101,10 +1151,7 @@ export function createRunChart({
       pixelY > chart.chartArea.bottom
     ) return;
     if (!pointSelection) {
-      const marker = visibleMarkers().find(
-        (candidate) =>
-          Math.abs(chart.scales.x.getPixelForValue(candidate.x) - pixel) <= 12,
-      );
+      const marker = markerAtPixel(pixel);
       if (marker) showMarkerDetails(marker);
       return;
     }
