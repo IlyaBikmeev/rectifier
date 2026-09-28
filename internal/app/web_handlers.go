@@ -34,13 +34,15 @@ type sensorView struct {
 
 type indexView struct {
 	Sensors []sensorView
+	Version string
 }
 
-func handleIndex(w http.ResponseWriter, r *http.Request, appState *AppState) {
+func handleIndex(w http.ResponseWriter, r *http.Request, appState *AppState, version string) {
 	sensors := appState.SensorsSnapshot()
 
 	data := indexView{
 		Sensors: make([]sensorView, 0, len(sensors)),
+		Version: version,
 	}
 
 	for sensorID, discoveredSensor := range sensors {
