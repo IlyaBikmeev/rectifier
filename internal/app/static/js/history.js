@@ -391,9 +391,22 @@ export function initHistory({ chart, runEvents, pollingInterval, pageSize }) {
       return;
     }
 
+    const selectedWasRunning =
+      findRun(state.selectedRunID)?.status === "RUNNING";
     await loadFirstPage({ preserveExisting: true });
     const selectedRun = findRun(state.selectedRunID);
-    if (selectedRun?.status === "RUNNING") await chart.refresh();
+    if (
+      selectedRun?.status === "RUNNING" ||
+      (selectedRun && selectedWasRunning)
+    ) {
+      chart.show({
+        id: selectedRun.id,
+        startedAt: selectedRun.startedAt,
+        stoppedAt: selectedRun.stoppedAt,
+        serverTime: selectedRun.status === "RUNNING" ? Date.now() : undefined,
+      });
+      await chart.refresh({ poll: true });
+    }
   }
 
   function closeChart(toggle) {
@@ -424,7 +437,13 @@ export function initHistory({ chart, runEvents, pollingInterval, pageSize }) {
     toggle.setAttribute("aria-expanded", "true");
     toggle.querySelector("[data-label]").textContent = "Скрыть график";
     toggle.closest("[data-run-row]").append(elements.chartPanel);
-    chart.show(runID);
+    const run = findRun(runID);
+    chart.show({
+      id: run.id,
+      startedAt: run.startedAt,
+      stoppedAt: run.stoppedAt,
+      serverTime: run.status === "RUNNING" ? Date.now() : undefined,
+    });
     chart.refresh();
   }
 

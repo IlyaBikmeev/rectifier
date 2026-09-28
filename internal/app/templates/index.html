@@ -180,6 +180,28 @@
             </div>
 
             <div id="run-chart-panel" class="d-none border-top mt-4 pt-4">
+              <div id="run-chart-viewport-controls" class="d-flex flex-wrap gap-3 justify-content-between align-items-center mb-3">
+                <div class="d-flex flex-column align-items-start gap-1">
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="small text-secondary">Период</span>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Временной диапазон графика">
+                      <button type="button" class="btn btn-outline-secondary" data-chart-range="all">Всё</button>
+                      <button type="button" class="btn btn-outline-secondary" data-chart-range="3600000">1 ч</button>
+                      <button type="button" class="btn btn-outline-secondary" data-chart-range="1800000">30 мин</button>
+                      <button type="button" class="btn btn-outline-secondary" data-chart-range="900000">15 мин</button>
+                      <button type="button" class="btn btn-outline-secondary" data-chart-range="300000">5 мин</button>
+                    </div>
+                  </div>
+                  <span class="small text-secondary text-nowrap" data-chart-visible-range aria-live="polite">—</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="small text-secondary">Температура</span>
+                  <div class="btn-group btn-group-sm" role="group" aria-label="Масштаб температуры">
+                    <button type="button" class="btn btn-outline-secondary" data-chart-y-mode="fixed">0–100 °C</button>
+                    <button type="button" class="btn btn-outline-secondary" data-chart-y-mode="auto">Авто</button>
+                  </div>
+                </div>
+              </div>
               <div
                 id="run-chart-pick-hint"
                 class="alert alert-info d-none d-flex justify-content-between align-items-center gap-3 py-2 mb-3"
@@ -225,7 +247,7 @@
                 class="d-none text-center text-secondary py-5"
               >
                 <i class="bi bi-graph-up fs-2 d-block mb-2" aria-hidden="true"></i>
-                Ожидаем первые измерения
+                <span data-chart-empty-label>Ожидаем первые измерения</span>
               </div>
               <div
                 id="run-chart-container"
@@ -849,6 +871,28 @@
             </button>
             <div id="history-add-event-reason" class="small text-secondary mt-1">Загружаем график…</div>
           </div>
+          <div id="history-chart-viewport-controls" class="d-flex flex-wrap gap-3 justify-content-between align-items-center mb-3">
+            <div class="d-flex flex-column align-items-start gap-1">
+              <div class="d-flex align-items-center gap-2">
+                <span class="small text-secondary">Период</span>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Временной диапазон графика">
+                  <button type="button" class="btn btn-outline-secondary" data-chart-range="all">Всё</button>
+                  <button type="button" class="btn btn-outline-secondary" data-chart-range="3600000">1 ч</button>
+                  <button type="button" class="btn btn-outline-secondary" data-chart-range="1800000">30 мин</button>
+                  <button type="button" class="btn btn-outline-secondary" data-chart-range="900000">15 мин</button>
+                  <button type="button" class="btn btn-outline-secondary" data-chart-range="300000">5 мин</button>
+                </div>
+              </div>
+              <span class="small text-secondary text-nowrap" data-chart-visible-range aria-live="polite">—</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="small text-secondary">Температура</span>
+              <div class="btn-group btn-group-sm" role="group" aria-label="Масштаб температуры">
+                <button type="button" class="btn btn-outline-secondary" data-chart-y-mode="fixed">0–100 °C</button>
+                <button type="button" class="btn btn-outline-secondary" data-chart-y-mode="auto">Авто</button>
+              </div>
+            </div>
+          </div>
           <div
             id="history-chart-pick-hint"
             class="alert alert-info d-none d-flex justify-content-between align-items-center gap-3 py-2 mb-3"
@@ -890,7 +934,7 @@
             class="d-none text-center text-secondary py-5"
           >
             <i class="bi bi-graph-up fs-2 d-block mb-2" aria-hidden="true"></i>
-            В этом перегоне нет измерений
+            <span data-chart-empty-label>В этом перегоне нет измерений</span>
           </div>
           <div
             id="history-chart-container"

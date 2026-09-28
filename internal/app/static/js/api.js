@@ -67,9 +67,15 @@ export function stopRun(runID) {
   );
 }
 
-export function getRunMeasurements(runID) {
+export function getRunMeasurements(runID, { from, to } = {}) {
+  const parameters = new URLSearchParams();
+  if (from !== undefined) parameters.set("from", from);
+  if (to !== undefined) parameters.set("to", to);
+
+  const query = parameters.toString();
+  const path = `/api/runs/${encodeURIComponent(runID)}/measurements`;
   return requestJSON(
-    `/api/runs/${encodeURIComponent(runID)}/measurements`,
+    query === "" ? path : `${path}?${query}`,
     { cache: "no-store" },
   );
 }

@@ -11,6 +11,50 @@ const colors = [
   "#758f45",
 ];
 
+const viewportStorageKey = "rectifier.chart.viewport.v1";
+const defaultViewportSettings = { range: "all", yMode: "fixed" };
+const supportedRanges = new Set([
+  "all",
+  "3600000",
+  "1800000",
+  "900000",
+  "300000",
+]);
+const supportedYModes = new Set(["fixed", "auto"]);
+const viewportListeners = new Set();
+const minimumRangeSelectionPixels = 8;
+
+function loadViewportSettings() {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(viewportStorageKey));
+    return {
+      range: supportedRanges.has(saved?.range)
+        ? saved.range
+        : defaultViewportSettings.range,
+      yMode: supportedYModes.has(saved?.yMode)
+        ? saved.yMode
+        : defaultViewportSettings.yMode,
+    };
+  } catch {
+    return { ...defaultViewportSettings };
+  }
+}
+
+let viewportSettings = loadViewportSettings();
+
+function updateViewportSettings(patch) {
+  viewportSettings = { ...viewportSettings, ...patch };
+  try {
+    window.localStorage.setItem(
+      viewportStorageKey,
+      JSON.stringify(viewportSettings),
+    );
+  } catch {
+    // Keep the controls usable when browser storage is unavailable.
+  }
+  for (const listener of viewportListeners) listener(viewportSettings, patch);
+}
+
 function paletteIndexForHardwareID(hardwareID) {
   let hash = 2166136261;
   for (const character of hardwareID) {
@@ -90,6 +134,25 @@ const multiDayTickFormatter = new Intl.DateTimeFormat("ru-RU", {
   minute: "2-digit",
   hourCycle: "h23",
 });
+const rangeTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+const shortRangeTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+const rangeDateTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
 
 function formatDuration(totalMilliseconds) {
   const totalSeconds = Math.max(0, Math.floor(totalMilliseconds / 1000));
@@ -137,6 +200,22 @@ function formatTooltipTitle(items) {
   return [`От старта ${elapsed}`, absolute];
 }
 
+function formatVisibleRange(from, to) {
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  const sameDay =
+    fromDate.getFullYear() === toDate.getFullYear() &&
+    fromDate.getMonth() === toDate.getMonth() &&
+    fromDate.getDate() === toDate.getDate();
+  if (!sameDay) {
+    return `${rangeDateTimeFormatter.format(fromDate)} — ${rangeDateTimeFormatter.format(toDate)}`;
+  }
+  const formatter = to - from < 60000
+    ? shortRangeTimeFormatter
+    : rangeTimeFormatter;
+  return `${formatter.format(fromDate)} — ${formatter.format(toDate)}`;
+}
+
 function truncateLabel(context, text, maxWidth) {
   if (context.measureText(text).width <= maxWidth) return text;
   let result = text;
@@ -177,20 +256,60 @@ const runMarkersPlugin = {
   id: "runMarkers",
   afterEvent(chart, args) {
     if (!args.event || !["mousemove", "mouseout"].includes(args.event.type)) return;
+    const previousCrosshair = chart.$crosshair;
+    chart.$crosshair = null;
     const previous = chart.$hoveredRunMarker;
     chart.$hoveredRunMarker = null;
     if (
       !chart.$pointSelectionActive &&
+      !chart.$rangeSelection &&
       args.event.type === "mousemove" &&
-      chart.chartArea
+      chart.chartArea &&
+      args.event.x >= chart.chartArea.left &&
+      args.event.x <= chart.chartArea.right &&
+      args.event.y >= chart.chartArea.top &&
+      args.event.y <= chart.chartArea.bottom
     ) {
+      chart.$crosshair = { x: args.event.x, y: args.event.y };
       chart.$hoveredRunMarker = (chart.$runMarkers || []).find((marker) =>
         Math.abs(chart.scales.x.getPixelForValue(marker.x) - args.event.x) <= 6 &&
-        args.event.y >= chart.chartArea.top &&
-        args.event.y <= chart.chartArea.bottom,
+        args.event.y >= chart.chartArea.top && args.event.y <= chart.chartArea.bottom,
       ) || null;
     }
-    if (previous !== chart.$hoveredRunMarker) args.changed = true;
+    if (
+      previous !== chart.$hoveredRunMarker ||
+      previousCrosshair?.x !== chart.$crosshair?.x ||
+      previousCrosshair?.y !== chart.$crosshair?.y
+    ) args.changed = true;
+  },
+  afterDatasetsDraw(chart) {
+    if (
+      chart.$rangeSelection ||
+      chart.$pointSelectionActive ||
+      !chart.$crosshair ||
+      !chart.chartArea
+    ) return;
+
+    const { ctx, chartArea } = chart;
+    const { x, y } = chart.$crosshair;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(
+      chartArea.left,
+      chartArea.top,
+      chartArea.right - chartArea.left,
+      chartArea.bottom - chartArea.top,
+    );
+    ctx.clip();
+    ctx.strokeStyle = "rgba(108, 117, 125, 0.45)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, chartArea.top);
+    ctx.lineTo(x, chartArea.bottom);
+    ctx.moveTo(chartArea.left, y);
+    ctx.lineTo(chartArea.right, y);
+    ctx.stroke();
+    ctx.restore();
   },
   afterDraw(chart) {
     const markers = chart.$runMarkers || [];
@@ -198,6 +317,17 @@ const runMarkersPlugin = {
     if (!chartArea) return;
 
     ctx.save();
+    const rangeSelection = chart.$rangeSelection;
+    if (rangeSelection?.active) {
+      const left = Math.min(rangeSelection.startX, rangeSelection.currentX);
+      const right = Math.max(rangeSelection.startX, rangeSelection.currentX);
+      ctx.fillStyle = "rgba(13, 110, 253, 0.16)";
+      ctx.fillRect(left, chartArea.top, right - left, chartArea.bottom - chartArea.top);
+      ctx.strokeStyle = "rgba(13, 110, 253, 0.85)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(left, chartArea.top, right - left, chartArea.bottom - chartArea.top);
+    }
+
     ctx.font = "11px sans-serif";
     const laneEnds = [-Infinity, -Infinity, -Infinity];
     for (const marker of markers) {
@@ -256,6 +386,7 @@ const runMarkersPlugin = {
       ctx.fillStyle = "#dee2e6";
       ctx.fillText(timeLabel, left + 8, top + height - 9);
     }
+
     ctx.restore();
   },
 };
@@ -267,6 +398,7 @@ export function createRunChart({
   container,
   error,
   canvas,
+  viewportControls,
   selectionHint,
   markerDetails,
   onEditMarker,
@@ -278,12 +410,133 @@ export function createRunChart({
   let hasResponse = false;
   let runStartedAt = null;
   let runEndedAt = null;
+  let runIsActive = false;
+  let responseFrom = null;
+  let responseTo = null;
+  let manualWindow = null;
+  let rangeSelection = null;
   let pointSelection = null;
   let previousCanvasTouchAction = null;
   let suppressCanvasClickUntil = 0;
   let markers = [];
   const availabilityListeners = new Set();
   const hiddenSensorIDs = new Set();
+  const emptyLabel = empty.querySelector("[data-chart-empty-label]");
+  const defaultEmptyLabel = emptyLabel.textContent;
+
+  function canvasPoint(event) {
+    const bounds = canvas.getBoundingClientRect();
+    return {
+      x: (event.clientX - bounds.left) * (canvas.clientWidth / bounds.width),
+      y: (event.clientY - bounds.top) * (canvas.clientHeight / bounds.height),
+    };
+  }
+
+  function clampChartX(x) {
+    return Math.min(chart.chartArea.right, Math.max(chart.chartArea.left, x));
+  }
+
+  function visibleXBounds() {
+    if (
+      runStartedAt === null ||
+      responseFrom === null ||
+      responseTo === null
+    ) return null;
+    return {
+      min: responseFrom - runStartedAt,
+      max: Math.max(
+        responseTo - runStartedAt,
+        responseFrom - runStartedAt + 1000,
+      ),
+    };
+  }
+
+  function autoYBounds(xBounds) {
+    if (!chart || !xBounds) return null;
+    let minimum = Infinity;
+    let maximum = -Infinity;
+    chart.data.datasets.forEach((dataset, index) => {
+      if (!chart.isDatasetVisible(index)) return;
+      for (const point of dataset.data) {
+        if (point.x < xBounds.min || point.x > xBounds.max) continue;
+        minimum = Math.min(minimum, point.y);
+        maximum = Math.max(maximum, point.y);
+      }
+    });
+    if (!Number.isFinite(minimum) || !Number.isFinite(maximum)) return null;
+
+    const midpoint = (minimum + maximum) / 2;
+    const range = Math.max((maximum - minimum) * 1.2, 0.5);
+    return { min: midpoint - range / 2, max: midpoint + range / 2 };
+  }
+
+  function renderViewportControls() {
+    for (const button of viewportControls.querySelectorAll(
+      "[data-chart-range]",
+    )) {
+      const active =
+        manualWindow === null &&
+        button.dataset.chartRange === viewportSettings.range;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    }
+    for (const button of viewportControls.querySelectorAll(
+      "[data-chart-y-mode]",
+    )) {
+      const active = button.dataset.chartYMode === viewportSettings.yMode;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    }
+    const rangeLabel = viewportControls.querySelector(
+      "[data-chart-visible-range]",
+    );
+    rangeLabel.textContent =
+      responseFrom === null || responseTo === null
+        ? "—"
+        : formatVisibleRange(responseFrom, responseTo);
+  }
+
+  function applyViewport() {
+    renderViewportControls();
+    if (!chart) return;
+
+    const xBounds = visibleXBounds();
+    chart.options.scales.x.min = xBounds.min;
+    chart.options.scales.x.max = xBounds.max;
+
+    const yBounds =
+      viewportSettings.yMode === "auto"
+        ? autoYBounds(xBounds)
+        : { min: 0, max: 100 };
+    chart.options.scales.y.min = yBounds?.min ?? 0;
+    chart.options.scales.y.max = yBounds?.max ?? 100;
+    chart.update("none");
+  }
+
+  viewportControls.addEventListener("click", (event) => {
+    const rangeButton = event.target.closest("[data-chart-range]");
+    if (rangeButton) {
+      manualWindow = null;
+      updateViewportSettings({ range: rangeButton.dataset.chartRange });
+      return;
+    }
+    const yModeButton = event.target.closest("[data-chart-y-mode]");
+    if (yModeButton) {
+      updateViewportSettings({ yMode: yModeButton.dataset.chartYMode });
+    }
+  });
+  function viewportChanged(_settings, patch) {
+    if (patch.range !== undefined) manualWindow = null;
+    renderViewportControls();
+    if (patch.range !== undefined && runID !== null) {
+      refresh();
+      return;
+    }
+    applyViewport();
+  }
+
+  viewportListeners.add(viewportChanged);
+  renderViewportControls();
 
   function destroyChart() {
     if (!chart) return;
@@ -302,6 +555,11 @@ export function createRunChart({
     markers = [];
     runStartedAt = null;
     runEndedAt = null;
+    runIsActive = false;
+    responseFrom = null;
+    responseTo = null;
+    manualWindow = null;
+    cancelRangeSelection();
     destroyChart();
   }
 
@@ -349,7 +607,7 @@ export function createRunChart({
     markers = markers.filter((marker) => marker.id !== eventID);
     hideMarkerDetails();
     if (!chart) return;
-    chart.$runMarkers = markers;
+    chart.$runMarkers = visibleMarkers();
     chart.draw();
   }
 
@@ -363,7 +621,7 @@ export function createRunChart({
       (left, right) => left.occurredAt - right.occurredAt || left.id - right.id,
     );
     if (chart) {
-      chart.$runMarkers = markers;
+      chart.$runMarkers = visibleMarkers();
       showMarkerDetails(replacement);
     }
     return true;
@@ -380,6 +638,15 @@ export function createRunChart({
       chart.tooltip?.setActiveElements([], { x: 0, y: 0 });
     }
     chart.update("none");
+  }
+
+  function cancelRangeSelection() {
+    const interactionWasDisabled = rangeSelection !== null;
+    rangeSelection = null;
+    if (!chart) return;
+    chart.$rangeSelection = null;
+    if (interactionWasDisabled) setTemperatureInteractionEnabled(true);
+    else chart.draw();
   }
 
   function setTouchSelectionEnabled(enabled) {
@@ -413,6 +680,7 @@ export function createRunChart({
     if (!canSelectPoint()) return false;
     cancelPointSelection(false);
     pointSelection = { onSelected, onCancelled };
+    chart.$crosshair = null;
     chart.$pointSelectionPreview = null;
     chart.$pointSelectionActive = true;
     setTouchSelectionEnabled(true);
@@ -459,12 +727,23 @@ export function createRunChart({
     resetView();
   }
 
-  function show(nextRunID) {
-    if (runID !== nextRunID) {
+  function show(run) {
+    if (
+      !Number.isInteger(run?.id) ||
+      !Number.isFinite(run.startedAt) ||
+      (run.stoppedAt != null && !Number.isFinite(run.stoppedAt)) ||
+      (run.serverTime !== undefined && !Number.isFinite(run.serverTime))
+    ) {
+      throw new Error("Unexpected run chart metadata");
+    }
+    if (runID !== run.id) {
       destroy();
-      runID = nextRunID;
+      runID = run.id;
       resetView();
     }
+    runStartedAt = run.startedAt;
+    runIsActive = run.stoppedAt == null;
+    runEndedAt = run.stoppedAt ?? run.serverTime ?? Date.now();
     panel.classList.remove("d-none");
   }
 
@@ -475,9 +754,14 @@ export function createRunChart({
       throw new Error("Unexpected measurement bounds");
     }
 
+    if (runIsActive && to > runEndedAt) runEndedAt = to;
+    if (runStartedAt === null || from < runStartedAt || to > runEndedAt) {
+      throw new Error("Measurement bounds are outside the run");
+    }
     const duration = Math.max(to - from, 1000);
-    runStartedAt = from;
-    runEndedAt = to;
+    responseFrom = from;
+    responseTo = to;
+    renderViewportControls();
     if (chart) {
       chart.data.datasets.forEach((dataset, index) => {
         if (chart.isDatasetVisible(index)) {
@@ -503,7 +787,7 @@ export function createRunChart({
           throw new Error("Unexpected measurement point");
         }
         return {
-          x: measuredAt - from,
+          x: measuredAt - runStartedAt,
           y: measurement.value,
           measuredAt,
         };
@@ -533,17 +817,19 @@ export function createRunChart({
     container.classList.toggle("d-none", pointCount === 0);
 
     if (pointCount === 0) {
+      emptyLabel.textContent = manualWindow === null
+        ? defaultEmptyLabel
+        : "В выбранном диапазоне нет измерений";
       destroyChart();
       return;
     }
 
     if (chart) {
       chart.data.datasets = datasets;
-      chart.options.scales.x.max = duration;
       chart.options.scales.x.ticks.callback = (value) =>
-        formatTick(Number(value), duration, from);
-      chart.$runMarkers = markers;
-      chart.update("none");
+        formatTick(Number(value), duration, runStartedAt);
+      chart.$runMarkers = visibleMarkers();
+      applyViewport();
       notifyAvailability();
       return;
     }
@@ -558,6 +844,10 @@ export function createRunChart({
         animation: false,
         normalized: true,
         interaction: { mode: "index", intersect: false, axis: "x" },
+        onResize(resizedChart) {
+          resizedChart.$crosshair = null;
+          cancelRangeSelection();
+        },
         scales: {
           x: {
             type: "linear",
@@ -573,7 +863,7 @@ export function createRunChart({
               color: "#6c757d",
               maxRotation: 0,
               callback: (value) =>
-                formatTick(Number(value), duration, from),
+                formatTick(Number(value), duration, runStartedAt),
             },
           },
           y: {
@@ -591,6 +881,14 @@ export function createRunChart({
         plugins: {
           legend: {
             position: "bottom",
+            onClick(event, legendItem, legend) {
+              window.Chart.defaults.plugins.legend.onClick(
+                event,
+                legendItem,
+                legend,
+              );
+              applyViewport();
+            },
             labels: {
               usePointStyle: true,
               pointStyle: "line",
@@ -616,12 +914,12 @@ export function createRunChart({
         },
       },
     });
-    chart.$runMarkers = markers;
-    chart.draw();
+    chart.$runMarkers = visibleMarkers();
+    applyViewport();
     notifyAvailability();
   }
 
-  function normalizeEvents(payload, expectedRunID, from) {
+  function normalizeEvents(payload, expectedRunID) {
     if (!Array.isArray(payload)) throw new Error("Unexpected events response format");
     return payload.map((event) => {
       const occurredAt = new Date(event?.occurred_at).getTime();
@@ -634,12 +932,43 @@ export function createRunChart({
       ) {
         throw new Error("Unexpected run event");
       }
-      return { id: event.id, text: event.text, occurredAt, x: occurredAt - from };
+      return {
+        id: event.id,
+        text: event.text,
+        occurredAt,
+        x: occurredAt - runStartedAt,
+      };
     });
   }
 
-  async function refresh() {
+  function visibleMarkers() {
+    if (responseFrom === null || responseTo === null) return [];
+    return markers.filter(
+      (marker) =>
+        marker.occurredAt >= responseFrom && marker.occurredAt <= responseTo,
+    );
+  }
+
+  function measurementWindow() {
+    if (manualWindow !== null) {
+      return {
+        from: new Date(manualWindow.from).toISOString(),
+        to: new Date(manualWindow.to).toISOString(),
+      };
+    }
+    if (viewportSettings.range === "all") return {};
+    if (runStartedAt === null || runEndedAt === null) return {};
+    const to = runEndedAt;
+    const from = Math.max(runStartedAt, to - Number(viewportSettings.range));
+    return {
+      from: new Date(from).toISOString(),
+      to: new Date(to).toISOString(),
+    };
+  }
+
+  async function refresh({ poll = false } = {}) {
     if (runID === null) return;
+    if (poll && manualWindow !== null && hasResponse) return;
 
     const requestedRunID = runID;
     const requestedVersion = ++requestVersion;
@@ -647,7 +976,7 @@ export function createRunChart({
 
     try {
       const [measurementsResult, eventsResult] = await Promise.allSettled([
-        getRunMeasurements(requestedRunID),
+        getRunMeasurements(requestedRunID, measurementWindow()),
         getRunEvents(requestedRunID),
       ]);
       if (measurementsResult.status === "rejected") throw measurementsResult.reason;
@@ -667,11 +996,7 @@ export function createRunChart({
       let eventsError = null;
       if (eventsResult.status === "fulfilled") {
         try {
-          markers = normalizeEvents(
-            eventsResult.value,
-            requestedRunID,
-            new Date(payload.from).getTime(),
-          );
+          markers = normalizeEvents(eventsResult.value, requestedRunID);
         } catch (validationError) {
           eventsError = validationError;
         }
@@ -707,9 +1032,7 @@ export function createRunChart({
       return;
     }
     if (!chart || runStartedAt === null) return;
-    const bounds = canvas.getBoundingClientRect();
-    const pixel = event.clientX - bounds.left;
-    const pixelY = event.clientY - bounds.top;
+    const { x: pixel, y: pixelY } = canvasPoint(event);
     if (
       pixel < chart.chartArea.left ||
       pixel > chart.chartArea.right ||
@@ -717,7 +1040,7 @@ export function createRunChart({
       pixelY > chart.chartArea.bottom
     ) return;
     if (!pointSelection) {
-      const marker = markers.find(
+      const marker = visibleMarkers().find(
         (candidate) =>
           Math.abs(chart.scales.x.getPixelForValue(candidate.x) - pixel) <= 12,
       );
@@ -727,35 +1050,120 @@ export function createRunChart({
     completePointSelection(chart.scales.x.getValueForPixel(pixel));
   });
   canvas.addEventListener("pointerdown", (event) => {
-    if (!pointSelection) return;
+    if (pointSelection) {
+      canvas.setPointerCapture?.(event.pointerId);
+      return;
+    }
+    if (
+      event.pointerType !== "mouse" ||
+      event.button !== 0 ||
+      !chart ||
+      !chart.chartArea
+    ) return;
+    const { x, y } = canvasPoint(event);
+    if (
+      x < chart.chartArea.left ||
+      x > chart.chartArea.right ||
+      y < chart.chartArea.top ||
+      y > chart.chartArea.bottom
+    ) return;
+    const clampedX = clampChartX(x);
+    rangeSelection = {
+      pointerId: event.pointerId,
+      startX: clampedX,
+      currentX: clampedX,
+      active: false,
+    };
+    chart.$rangeSelection = rangeSelection;
+    chart.$crosshair = null;
+    chart.$hoveredRunMarker = null;
+    setTemperatureInteractionEnabled(false);
     canvas.setPointerCapture?.(event.pointerId);
   });
   canvas.addEventListener("pointerup", (event) => {
-    if (!pointSelection || !chart || runStartedAt === null) return;
-    const bounds = canvas.getBoundingClientRect();
-    const pixel = Math.min(
-      chart.chartArea.right,
-      Math.max(chart.chartArea.left, event.clientX - bounds.left),
+    if (pointSelection) {
+      if (!chart || runStartedAt === null) return;
+      const pixel = clampChartX(canvasPoint(event).x);
+      const value = Number.isFinite(chart.$pointSelectionPreview)
+        ? chart.$pointSelectionPreview
+        : chart.scales.x.getValueForPixel(pixel);
+      suppressCanvasClickUntil = Date.now() + 1000;
+      completePointSelection(value);
+      return;
+    }
+    if (
+      !rangeSelection ||
+      rangeSelection.pointerId !== event.pointerId ||
+      !chart ||
+      runStartedAt === null
+    ) return;
+    rangeSelection.currentX = clampChartX(canvasPoint(event).x);
+    if (!rangeSelection.active) {
+      cancelRangeSelection();
+      const { x, y } = canvasPoint(event);
+      if (
+        x >= chart.chartArea.left &&
+        x <= chart.chartArea.right &&
+        y >= chart.chartArea.top &&
+        y <= chart.chartArea.bottom
+      ) {
+        chart.$crosshair = { x, y };
+        chart.draw();
+      }
+      return;
+    }
+
+    const fromValue = chart.scales.x.getValueForPixel(
+      Math.min(rangeSelection.startX, rangeSelection.currentX),
     );
-    const value = Number.isFinite(chart.$pointSelectionPreview)
-      ? chart.$pointSelectionPreview
-      : chart.scales.x.getValueForPixel(pixel);
+    const toValue = chart.scales.x.getValueForPixel(
+      Math.max(rangeSelection.startX, rangeSelection.currentX),
+    );
+    // The X scale stores elapsed milliseconds from runStartedAt, not Unix time.
+    const from = runStartedAt + fromValue;
+    const to = runStartedAt + toValue;
+    cancelRangeSelection();
     suppressCanvasClickUntil = Date.now() + 1000;
-    completePointSelection(value);
+    if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return;
+
+    manualWindow = { from, to };
+    hideMarkerDetails();
+    renderViewportControls();
+    refresh();
   });
   canvas.addEventListener("pointermove", (event) => {
-    if (!pointSelection || !chart || runStartedAt === null) return;
-    const bounds = canvas.getBoundingClientRect();
-    const pixel = event.clientX - bounds.left;
-    if (pixel < chart.chartArea.left || pixel > chart.chartArea.right) return;
-    const value = Math.min(
-      chart.scales.x.max,
-      Math.max(chart.scales.x.min, chart.scales.x.getValueForPixel(pixel)),
+    if (pointSelection) {
+      if (!chart || runStartedAt === null) return;
+      const pixel = clampChartX(canvasPoint(event).x);
+      const value = Math.min(
+        chart.scales.x.max,
+        Math.max(chart.scales.x.min, chart.scales.x.getValueForPixel(pixel)),
+      );
+      chart.$pointSelectionPreview = value;
+      selectionHint.querySelector("[data-event-pick-label]").textContent =
+        `Выбрано ${absoluteTimeFormatter.format(new Date(runStartedAt + value))}. Отпустите, чтобы подтвердить.`;
+      chart.draw();
+      return;
+    }
+    if (
+      !rangeSelection ||
+      rangeSelection.pointerId !== event.pointerId ||
+      !chart
+    ) return;
+    rangeSelection.currentX = clampChartX(canvasPoint(event).x);
+    const horizontalDelta = Math.abs(
+      rangeSelection.currentX - rangeSelection.startX,
     );
-    chart.$pointSelectionPreview = value;
-    selectionHint.querySelector("[data-event-pick-label]").textContent =
-      `Выбрано ${absoluteTimeFormatter.format(new Date(runStartedAt + value))}. Отпустите, чтобы подтвердить.`;
-    chart.draw();
+    if (!rangeSelection.active && horizontalDelta >= minimumRangeSelectionPixels) {
+      rangeSelection.active = true;
+    }
+    if (rangeSelection.active) chart.draw();
+  });
+  canvas.addEventListener("pointercancel", (event) => {
+    if (rangeSelection?.pointerId === event.pointerId) cancelRangeSelection();
+  });
+  canvas.addEventListener("lostpointercapture", (event) => {
+    if (rangeSelection?.pointerId === event.pointerId) cancelRangeSelection();
   });
   selectionHint.addEventListener("click", (event) => {
     if (event.target.closest('[data-action="cancel-event-pick"]')) cancelPointSelection();

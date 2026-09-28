@@ -223,7 +223,14 @@ export function initRuns({ chart, runEvents, pollingInterval }) {
 
     if ((isRunning || status === "STOPPING") && process.active_run) {
       const run = process.active_run;
-      chart.show(run.id);
+      chart.show({
+        id: run.id,
+        startedAt: new Date(run.started_at).getTime(),
+        stoppedAt: null,
+        serverTime: process.server_time
+          ? new Date(process.server_time).getTime()
+          : Date.now() + serverClockOffset,
+      });
       document.getElementById("active-run-batch").textContent =
         run.batch.name;
       document.getElementById("active-run-type").textContent =
@@ -270,7 +277,7 @@ export function initRuns({ chart, runEvents, pollingInterval }) {
         (process.status === "RUNNING" || process.status === "STOPPING") &&
         process.active_run
       ) {
-        chart.refresh();
+        chart.refresh({ poll: true });
       }
       return process;
     } catch (error) {
