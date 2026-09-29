@@ -57,7 +57,10 @@ func Run(
 	var wg sync.WaitGroup
 
 	wg.Add(1)
-	go runSensorPolling(&wg, appCtx, appState, sensorRegistry, measurementRepository)
+	go func() {
+		defer wg.Done()
+		runSensorPolling(appCtx, appState, sensorRegistry, measurementRepository)
+	}()
 
 	router := newRouter(
 		version,

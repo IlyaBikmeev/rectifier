@@ -5,14 +5,12 @@ import (
 	"log/slog"
 	"rectifier/internal/registry"
 	"rectifier/internal/storage"
-	"sync"
 	"time"
 )
 
 const pollingInterval = 5 * time.Second
 
-func runSensorPolling(wg *sync.WaitGroup, ctx context.Context, appState *AppState, sensorRegistry registry.SensorRegistry, measurementRepository storage.MeasurementRepository) {
-	defer wg.Done()
+func runSensorPolling(ctx context.Context, appState *AppState, sensorRegistry registry.SensorRegistry, measurementRepository storage.MeasurementRepository) {
 	pollSensors(ctx, appState, sensorRegistry, measurementRepository)
 
 	ticker := time.NewTicker(pollingInterval)
