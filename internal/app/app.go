@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"rectifier/internal/registry"
 	"rectifier/internal/storage"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -53,8 +54,10 @@ func Run(
 		return
 	}
 
-	//TODO handle pollingDone before exiting
-	go runSensorPolling(appCtx, appState, sensorRegistry, measurementRepository)
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go runSensorPolling(&wg, appCtx, appState, sensorRegistry, measurementRepository)
 
 	router := newRouter(
 		version,
@@ -99,6 +102,9 @@ func Run(
 		if !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("server stopped unexpectedly", "error", err)
 		}
+
+		cancelApp()
+		wg.Wait()
 		return
 	}
 
@@ -110,8 +116,12 @@ func Run(
 
 	slog.Info("http server shutdown started")
 
-	if err := server.Shutdown(ctx); err != nil {
-		slog.Error("http server shutdown failed", "error", err)
+	shutdownErr := server.Shutdown(ctx)
+	cancelApp()
+	wg.Wait()
+
+	if shutdownErr != nil {
+		slog.Error("http server shutdown failed", "error", shutdownErr)
 		return
 	}
 
