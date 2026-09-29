@@ -142,7 +142,7 @@ func handleCreateRun(w http.ResponseWriter, r *http.Request, appState *AppState,
 
 	if err != nil {
 		slog.Error("create run failed", "batch_id", request.BatchID, "type", request.Type, "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -202,7 +202,7 @@ func handleStopRun(
 		}
 
 		slog.Error("stop run failed", "run_id", id, "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -250,7 +250,16 @@ func handleRunMeasurements(
 		return
 	}
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		attrs := []any{"run_id", runID}
+		if from != nil {
+			attrs = append(attrs, "from", *from)
+		}
+		if to != nil {
+			attrs = append(attrs, "to", *to)
+		}
+		attrs = append(attrs, "error", err)
+		slog.Error("get run measurements failed", attrs...)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 

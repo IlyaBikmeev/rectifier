@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -36,6 +37,6 @@ func handleProcess(w http.ResponseWriter, r *http.Request, appState *AppState) {
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("encode process response failed", "error", err)
 	}
 }

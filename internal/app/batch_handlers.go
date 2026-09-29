@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"rectifier/internal/storage"
 	"strconv"
@@ -73,7 +74,8 @@ func handleBatches(w http.ResponseWriter, r *http.Request, batchRepository stora
 	}
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("get batches failed", "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -97,7 +99,7 @@ func handleBatches(w http.ResponseWriter, r *http.Request, batchRepository stora
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("encode batches response failed", "error", err)
 	}
 }
 
@@ -140,7 +142,8 @@ func handleCreateBatch(w http.ResponseWriter, r *http.Request, batchRepository s
 	})
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("create batch failed", "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -156,6 +159,6 @@ func handleCreateBatch(w http.ResponseWriter, r *http.Request, batchRepository s
 	w.WriteHeader(http.StatusCreated)
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("encode create batch response failed", "batch_id", batch.ID, "error", err)
 	}
 }

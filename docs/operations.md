@@ -8,6 +8,12 @@ journalctl -u rectifier -f
 sudo systemctl restart rectifier
 ```
 
+Неожиданные ошибки API записываются структурированными сообщениями уровня
+`ERROR` с идентификатором связанного датчика, Run или партии, когда он известен.
+Клиент при этом получает общее сообщение `internal server error`: подробности
+ошибки SQLite доступны только в журнале сервиса. Ошибки отправки уже начатого
+HTTP-ответа также остаются в журнале и не создают повторный ответ клиенту.
+
 Бинарник находится в `/usr/local/bin/rectifier`, unit — в
 `/etc/systemd/system/rectifier.service`, данные — в
 `/var/lib/rectifier/rectifier.db`. Рядом с БД во время работы могут быть WAL- и
