@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"rectifier/internal/storage"
 	"sort"
@@ -57,7 +58,7 @@ func handleStatus(w http.ResponseWriter, r *http.Request, appState *AppState) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("encode sensor status response failed", "error", err)
 	}
 }
 
@@ -71,7 +72,8 @@ func handleUpdateSensor(
 	exists, err := sensorRepository.ExistsByHardwareID(r.Context(), hardwareID)
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("check sensor existence failed", "sensor_id", hardwareID, "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -121,7 +123,8 @@ func handleUpdateSensor(
 	})
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("update sensor failed", "sensor_id", hardwareID, "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	appState.UpdateSensorMetadata(
@@ -131,6 +134,7 @@ func handleUpdateSensor(
 		sensor.Unit,
 		sensor.Enabled,
 	)
+	slog.Info("sensor updated", "sensor_id", hardwareID, "enabled", sensor.Enabled)
 
 	response := updateSensorResponse{
 		HardwareID:      sensor.HardwareID,
@@ -145,6 +149,6 @@ func handleUpdateSensor(
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("encode update sensor response failed", "sensor_id", hardwareID, "error", err)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -21,12 +22,14 @@ func Run(
 	measurementRepository storage.MeasurementRepository,
 	runEventRepository storage.RunEventRepository,
 ) {
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, nil)))
+
 	appState := NewAppState()
 	appCtx, cancelApp := context.WithCancel(context.Background())
 	defer cancelApp()
 
 	if err := registerSensorMetrics(appState); err != nil {
-		fmt.Printf("Register sensor metrics: %v\n", err)
+		slog.Error("register sensor metrics", "error", err)
 		return
 	}
 
@@ -36,7 +39,7 @@ func Run(
 		sensorRegistry,
 		sensorRepository,
 	); err != nil {
-		fmt.Printf("Sync discovered sensors: %v\n", err)
+		slog.Error("sync discovered sensors", "error", err)
 		return
 	}
 
@@ -45,7 +48,7 @@ func Run(
 		appState,
 		runRepository,
 	); err != nil {
-		fmt.Printf("Restore active run: %v\n", err)
+		slog.Error("restore active run", "error", err)
 		return
 	}
 
@@ -69,7 +72,7 @@ func Run(
 	serverErrors := make(chan error, 1)
 
 	go func() {
-		fmt.Printf("Server started on %s\n", server.Addr)
+		slog.Info("server started", "addr", server.Addr)
 
 		serverErrors <- server.ListenAndServe()
 
@@ -84,11 +87,11 @@ func Run(
 
 	select {
 	case sig := <-shutdownSignal:
-		fmt.Printf("Received signal: %s\n", sig)
+		slog.Info("shutdown started", "signal", sig.String())
 
 	case err := <-serverErrors:
 		if !errors.Is(err, http.ErrServerClosed) {
-			fmt.Printf("Server error: %v\n", err)
+			slog.Error("server stopped unexpectedly", "error", err)
 		}
 		return
 	}
@@ -99,14 +102,14 @@ func Run(
 	)
 	defer cancel()
 
-	fmt.Println("Shutting down server...")
+	slog.Info("http server shutdown started")
 
 	if err := server.Shutdown(ctx); err != nil {
-		fmt.Printf("Error shutting down server: %v\n", err)
+		slog.Error("http server shutdown failed", "error", err)
 		return
 	}
 
-	fmt.Println("Server stopped")
+	slog.Info("shutdown completed")
 }
 
 func restoreActiveRun(
@@ -131,6 +134,7 @@ func restoreActiveRun(
 		startedAt:         run.StartedAt,
 		sensorHardwareIDs: run.SensorHardwareIDs,
 	})
+	slog.Info("active run restored", "run_id", run.ID, "batch_id", run.BatchID, "type", run.Type)
 
 	return nil
 }
@@ -167,7 +171,7 @@ func syncDiscoveredSensors(
 		persistedSensor, found := sensorsMap[discoveredSensor.ID()]
 
 		if !found {
-			fmt.Printf("sensor %q not found, saving in database ...\n", discoveredSensor.ID())
+			slog.Info("sensor discovered", "sensor_id", discoveredSensor.ID())
 			persistedSensor, err = sensorRepository.Save(ctx, storage.Sensor{
 				HardwareID:      discoveredSensor.ID(),
 				Name:            discoveredSensor.Name(),

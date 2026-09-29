@@ -3,7 +3,7 @@ package app
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
+	"log/slog"
 	"net/http"
 	"rectifier/internal/storage"
 	"strconv"
@@ -71,12 +71,13 @@ func handleCreateEvent(w http.ResponseWriter, r *http.Request, runEventRepositor
 		} else if errors.Is(err, storage.ErrRunNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 		} else {
-			fmt.Printf("handle create event error: %v\n", err)
+			slog.Error("create run event failed", "run_id", runID, "error", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 		}
 
 		return
 	}
+	slog.Info("run event created", "run_id", runID, "event_id", createdEvent.ID)
 
 	response := runEventResponse{
 		ID:         createdEvent.ID,
@@ -90,7 +91,7 @@ func handleCreateEvent(w http.ResponseWriter, r *http.Request, runEventRepositor
 	w.WriteHeader(http.StatusCreated)
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		fmt.Printf("Encode create event response: %v\n", err)
+		slog.Error("encode create run event response failed", "run_id", runID, "event_id", createdEvent.ID, "error", err)
 	}
 
 }
@@ -108,7 +109,7 @@ func handleGetEvents(w http.ResponseWriter, r *http.Request, runEventRepository 
 		if errors.Is(err, storage.ErrRunNotFound) {
 			http.Error(w, "run not found", http.StatusNotFound)
 		} else {
-			fmt.Printf("handle get events: %v\n", err)
+			slog.Error("get run events failed", "run_id", runID, "error", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 		}
 		return
@@ -132,7 +133,7 @@ func handleGetEvents(w http.ResponseWriter, r *http.Request, runEventRepository 
 	w.WriteHeader(http.StatusOK)
 
 	if err := json.NewEncoder(w).Encode(responses); err != nil {
-		fmt.Printf("Encode get events response: %v\n", err)
+		slog.Error("encode run events response failed", "run_id", runID, "error", err)
 	}
 }
 
@@ -147,11 +148,12 @@ func handleDeleteEvent(w http.ResponseWriter, r *http.Request, runEventRepositor
 		if errors.Is(err, storage.ErrRunEventNotFound) {
 			http.Error(w, "run event not found", http.StatusNotFound)
 		} else {
-			fmt.Printf("handle delete event: %v\n", err)
+			slog.Error("delete run event failed", "event_id", eventID, "error", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 		}
 		return
 	}
+	slog.Info("run event deleted", "event_id", eventID)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -199,11 +201,12 @@ func handleUpdateEvent(w http.ResponseWriter, r *http.Request, runEventRepositor
 		} else if errors.Is(err, storage.ErrRunEventNotFound) {
 			http.Error(w, "run event not found", http.StatusNotFound)
 		} else {
-			fmt.Printf("handle update event: %v\n", err)
+			slog.Error("update run event failed", "event_id", eventID, "error", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 		}
 		return
 	}
+	slog.Info("run event updated", "event_id", eventID)
 
 	response := runEventResponse{
 		ID:         updatedEvent.ID,
@@ -215,6 +218,6 @@ func handleUpdateEvent(w http.ResponseWriter, r *http.Request, runEventRepositor
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		fmt.Printf("encode update event response: %v\n", err)
+		slog.Error("encode update run event response failed", "event_id", eventID, "error", err)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"path"
 	"strconv"
 	"strings"
@@ -28,7 +29,7 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("read migration version: %w", err)
 	}
 
-	fmt.Printf("current database version: %d\n", currentVersion)
+	slog.Info("current database version", "version", currentVersion)
 
 	entries, err := migrationFiles.ReadDir("migrations")
 	if err != nil {
@@ -86,7 +87,7 @@ func applyMigration(ctx context.Context, db *sql.DB, m migration) error {
 		return fmt.Errorf("commit migration %d: %w", m.version, err)
 	}
 
-	fmt.Printf("migration %q applied\n", m.entry.Name())
+	slog.Info("migration applied", "migration", m.entry.Name())
 	return nil
 }
 
