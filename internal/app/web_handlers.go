@@ -2,8 +2,8 @@ package app
 
 import (
 	"embed"
-	"fmt"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -61,7 +61,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request, appState *AppState) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	if err := indexTemplate.Execute(w, data); err != nil {
-		fmt.Printf("Error rendering index: %v\n", err)
+		slog.Error("rendering index", "error", err)
 	}
 }
 
@@ -79,6 +79,6 @@ func handleIcon(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	if _, err := w.Write(iconPNG); err != nil {
-		fmt.Printf("Error serving icon: %v\n", err)
+		slog.Error("serving icon", "error", err)
 	}
 }
