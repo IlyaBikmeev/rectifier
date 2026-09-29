@@ -74,7 +74,11 @@ func Run(
 	serverErrors := make(chan error, 1)
 
 	go func() {
-		slog.Info("server started", "addr", server.Addr)
+		slog.Info(
+			"server started",
+			"addr", server.Addr,
+			"version", version,
+		)
 
 		serverErrors <- server.ListenAndServe()
 
