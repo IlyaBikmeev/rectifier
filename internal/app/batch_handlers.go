@@ -146,6 +146,7 @@ func handleCreateBatch(w http.ResponseWriter, r *http.Request, batchRepository s
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
+	slog.Info("batch created", "batch_id", batch.ID)
 
 	response := batchResponse{
 		ID:        batch.ID,

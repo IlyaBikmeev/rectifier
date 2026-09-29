@@ -77,6 +77,7 @@ func handleCreateEvent(w http.ResponseWriter, r *http.Request, runEventRepositor
 
 		return
 	}
+	slog.Info("run event created", "run_id", runID, "event_id", createdEvent.ID)
 
 	response := runEventResponse{
 		ID:         createdEvent.ID,
@@ -152,6 +153,7 @@ func handleDeleteEvent(w http.ResponseWriter, r *http.Request, runEventRepositor
 		}
 		return
 	}
+	slog.Info("run event deleted", "event_id", eventID)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -204,6 +206,7 @@ func handleUpdateEvent(w http.ResponseWriter, r *http.Request, runEventRepositor
 		}
 		return
 	}
+	slog.Info("run event updated", "event_id", eventID)
 
 	response := runEventResponse{
 		ID:         updatedEvent.ID,

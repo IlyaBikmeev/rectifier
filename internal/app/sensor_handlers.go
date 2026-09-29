@@ -134,6 +134,7 @@ func handleUpdateSensor(
 		sensor.Unit,
 		sensor.Enabled,
 	)
+	slog.Info("sensor updated", "sensor_id", hardwareID, "enabled", sensor.Enabled)
 
 	response := updateSensorResponse{
 		HardwareID:      sensor.HardwareID,
