@@ -43,6 +43,11 @@
             class="d-inline-block me-2"
           />
           Rectifier
+          <span
+            class="d-none d-lg-inline small fw-normal text-secondary font-monospace ms-2"
+          >
+            {{.Version}}
+          </span>
         </a>
         <span class="badge text-bg-secondary d-lg-none" data-process-badge>
           Запись остановлена
@@ -54,8 +59,14 @@
           aria-labelledby="main-navigation-title"
         >
           <div class="offcanvas-header">
-            <h2 class="offcanvas-title h5 fw-bold" id="main-navigation-title">
-              Rectifier
+            <h2
+              class="offcanvas-title h5 fw-bold d-flex flex-wrap align-items-baseline gap-2"
+              id="main-navigation-title"
+            >
+              <span>Rectifier</span>
+              <span class="small fw-normal text-secondary font-monospace text-break">
+                {{.Version}}
+              </span>
             </h2>
             <button
               type="button"
@@ -975,10 +986,6 @@
         </div>
       </section>
     </main>
-
-    <footer class="container pb-4 text-center text-secondary small">
-      Rectifier · {{.Version}}
-    </footer>
 
     <div
       class="modal fade"
