@@ -740,6 +740,15 @@ export function createRunChart({
     }, 1200);
   }
 
+  function finishTouchTooltipInteraction(event) {
+    if (
+      event.pointerType !== "touch" ||
+      pointSelection ||
+      rangeSelection
+    ) return;
+    scheduleTouchTooltipCleanup();
+  }
+
   function setTemperatureInteractionEnabled(enabled) {
     if (!chart) return;
     chart.options.plugins.tooltip.enabled = enabled;
@@ -1217,13 +1226,7 @@ export function createRunChart({
     canvas.setPointerCapture?.(event.pointerId);
   });
   canvas.addEventListener("pointerup", (event) => {
-    if (
-      event.pointerType === "touch" &&
-      !pointSelection &&
-      !rangeSelection
-    ) {
-      scheduleTouchTooltipCleanup();
-    }
+    finishTouchTooltipInteraction(event);
     if (pointSelection) {
       if (!chart || runStartedAt === null) return;
       const pixel = clampChartX(canvasPoint(event).x);
@@ -1315,6 +1318,7 @@ export function createRunChart({
     if (rangeSelection.active) chart.draw();
   });
   canvas.addEventListener("pointercancel", (event) => {
+    finishTouchTooltipInteraction(event);
     if (rangeSelection?.pointerId === event.pointerId) cancelRangeSelection();
   });
   canvas.addEventListener("lostpointercapture", (event) => {
