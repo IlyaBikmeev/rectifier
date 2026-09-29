@@ -15,6 +15,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+var version = "dev"
+
 func main() {
 	sensorMode := flag.String(
 		"sensor-mode",
@@ -84,5 +86,5 @@ func main() {
 	measurementRepository := storage.NewSQLiteMeasurementRepository(db)
 	runEventRepository := storage.NewRunEventRepository(db)
 
-	app.Run(sensorRegistry, sensorRepository, batchRepository, runRepository, measurementRepository, runEventRepository)
+	app.Run(version, sensorRegistry, sensorRepository, batchRepository, runRepository, measurementRepository, runEventRepository)
 }
