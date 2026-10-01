@@ -6,7 +6,11 @@ import {
   stopRun,
 } from "./api.js";
 
-export function initRuns({ chart, runEvents, pollingInterval }) {
+export function initRuns({
+  chart,
+  runEvents,
+  pollingInterval,
+}) {
   const lastReadFormatter = new Intl.DateTimeFormat("ru-RU", {
     hour: "2-digit",
     minute: "2-digit",
@@ -17,6 +21,13 @@ export function initRuns({ chart, runEvents, pollingInterval }) {
   const processCard = document.getElementById("process-card");
   const processStopped = document.getElementById("process-stopped");
   const processRunning = document.getElementById("process-running");
+  const processStoppedStatus = document.getElementById(
+    "process-stopped-status",
+  );
+  const processRunningStatus = document.getElementById(
+    "process-running-status",
+  );
+  const noActiveRun = document.getElementById("no-active-run");
   const processSyncWarning = document.getElementById(
     "process-sync-warning",
   );
@@ -188,15 +199,10 @@ export function initRuns({ chart, runEvents, pollingInterval }) {
       "d-none",
       !(isRunning || status === "STOPPING"),
     );
-    processCard.classList.toggle(
-      "border-success",
-      isRunning || status === "STOPPING",
+    noActiveRun.classList.toggle(
+      "d-none",
+      (isRunning || status === "STOPPING") && Boolean(process.active_run),
     );
-    processCard.classList.toggle(
-      "border-secondary",
-      !(isRunning || status === "STOPPING"),
-    );
-
     const badgeText = isRunning
       ? "Идёт запись"
       : isTransition
@@ -204,6 +210,10 @@ export function initRuns({ chart, runEvents, pollingInterval }) {
           ? "Запись запускается"
           : "Запись останавливается"
         : "Запись остановлена";
+    processStoppedStatus.textContent = isStopped
+      ? "Запись не ведётся"
+      : badgeText;
+    processRunningStatus.textContent = badgeText;
     for (const badge of document.querySelectorAll("[data-process-badge]")) {
       badge.textContent = badgeText;
       badge.classList.toggle("text-bg-success", isRunning);

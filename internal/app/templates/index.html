@@ -64,7 +64,9 @@
               id="main-navigation-title"
             >
               <span>Rectifier</span>
-              <span class="small fw-normal text-secondary font-monospace text-break">
+              <span
+                class="small fw-normal text-secondary font-monospace text-break"
+              >
                 {{.Version}}
               </span>
             </h2>
@@ -94,20 +96,27 @@
       </div>
     </nav>
 
-    <main class="container py-4">
-      <section id="home-view" aria-labelledby="home-title">
+    <main class="container py-2">
+      <section
+        id="home-view"
+        class="d-flex flex-column"
+        aria-labelledby="home-title"
+        {{if .CameraURL}}data-camera-url="{{.CameraURL}}"{{end}}
+      >
         <h1 class="visually-hidden" id="home-title">
           Мониторинг ректификационной колонны
         </h1>
 
         <!-- Recording process. Start/Stop controls data recording only. -->
-        <div
-          id="process-card"
-          class="card shadow-sm border-start border-4 border-secondary mb-4"
-          data-process-status="STOPPED"
-          aria-live="polite"
-        >
-          <div class="card-body">
+        <div id="monitoring-layout" class="row g-2">
+          <div id="process-column" class="col-12">
+            <div
+              id="process-card"
+              class="card shadow-sm"
+              data-process-status="STOPPED"
+              aria-live="polite"
+            >
+          <div class="card-body p-3">
             <div
               id="process-sync-warning"
               class="alert alert-warning d-none mb-3"
@@ -117,26 +126,22 @@
               известное состояние; действия временно недоступны.
             </div>
 
-            <div id="process-stopped" class="row align-items-center g-4">
-              <div class="col-12 col-lg">
-                <div
-                  class="text-secondary small fw-semibold text-uppercase mb-2"
-                >
-                  Журнал измерений
-                </div>
-                <span class="badge text-bg-secondary mb-3">
-                  Запись остановлена
-                </span>
-                <h2 class="h3 mb-1">Запись не ведётся</h2>
-                <p class="text-secondary mb-0">
+            <div id="process-stopped" class="row align-items-center g-2">
+              <div class="col-12 col-md">
+                <h2 id="process-stopped-status" class="h6 mb-0">
+                  Запись не ведётся
+                </h2>
+                <p class="small text-secondary mb-0">
                   Температуры продолжают обновляться
                 </p>
               </div>
-              <div class="col-12 col-lg-auto d-grid">
+              <div
+                class="col-12 col-md-auto d-flex flex-wrap justify-content-md-end gap-2"
+              >
                 <button
                   id="open-start-run"
                   type="button"
-                  class="btn btn-success py-2 px-lg-5"
+                  class="btn btn-success py-2"
                   data-bs-toggle="modal"
                   data-bs-target="#start-run-modal"
                 >
@@ -145,21 +150,23 @@
               </div>
             </div>
 
-            <div id="process-running" class="row align-items-center g-4 d-none">
-              <div class="col-12 col-lg">
+            <div id="process-running" class="row align-items-center g-2 d-none">
+              <div
+                class="col-12 col-md d-flex flex-wrap align-items-center gap-2 gap-md-3"
+              >
                 <div
-                  class="d-flex align-items-center gap-2 text-success fw-semibold mb-2"
+                  class="d-flex align-items-center gap-2 text-success fw-semibold"
                 >
                   <i class="bi bi-record-circle-fill" aria-hidden="true"></i>
-                  Идёт запись
+                  <span id="process-running-status">Идёт запись</span>
                 </div>
                 <div
                   id="process-timer"
-                  class="display-5 fw-bold font-monospace mb-3"
+                  class="h4 fw-bold font-monospace mb-0"
                 >
                   00:00:00
                 </div>
-                <h2 id="active-run-batch" class="h5 mb-2">Партия</h2>
+                <h2 id="active-run-batch" class="h6 mb-0">Партия</h2>
                 <div
                   class="text-secondary small d-flex flex-wrap gap-2 gap-md-3"
                 >
@@ -168,11 +175,11 @@
                   <span id="active-run-sensors">0 датчиков</span>
                 </div>
               </div>
-              <div class="col-12 col-lg-auto d-grid gap-2">
+              <div class="col-12 col-md-auto d-grid">
                 <button
                   id="stop-run-button"
                   type="button"
-                  class="btn btn-outline-danger py-2 px-lg-5"
+                  class="btn btn-sm btn-outline-danger py-2 px-lg-4"
                   data-bs-toggle="modal"
                   data-bs-target="#stop-run-modal"
                 >
@@ -181,31 +188,257 @@
               </div>
             </div>
 
-            <div id="run-chart-panel" class="d-none border-top mt-4 pt-4">
-              <div id="run-chart-viewport-controls" class="d-flex flex-wrap align-items-start gap-3 bg-body-tertiary rounded p-3 mb-3" role="toolbar" aria-label="Инструменты графика температуры">
+            <div
+              id="temperature-summary"
+              class="d-flex flex-wrap align-items-center gap-1 small border rounded bg-body-tertiary px-2 py-1 mt-2"
+              aria-live="polite"
+              aria-label="Текущие температуры"
+            >
+              <span class="text-secondary">Загружаем показания…</span>
+            </div>
+
+            <div
+              class="d-flex flex-wrap align-items-end justify-content-between gap-2 border-bottom mt-2"
+            >
+              <ul
+                class="nav nav-tabs border-bottom-0"
+                role="tablist"
+                aria-label="Разделы главного экрана"
+              >
+              <li class="nav-item" role="presentation">
+                <button
+                  id="sensors-tab"
+                  type="button"
+                  class="nav-link"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="sensors-tab-panel"
+                  data-home-tab="sensors"
+                >
+                  Датчики
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button
+                  id="process-tab"
+                  type="button"
+                  class="nav-link active"
+                  role="tab"
+                  aria-selected="true"
+                  aria-controls="process-tab-panel"
+                  data-home-tab="process"
+                >
+                  Процесс
+                </button>
+              </li>
+              {{if .CameraURL}}
+              <li class="nav-item" role="presentation">
+                <button
+                  id="camera-tab"
+                  type="button"
+                  class="nav-link"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="camera-tab-panel"
+                  data-home-tab="camera"
+                >
+                  Камера
+                </button>
+              </li>
+              {{end}}
+              </ul>
+              {{if .CameraURL}}
+              <div
+                class="d-flex flex-wrap align-items-center gap-2 pb-1 ms-auto"
+                aria-label="Настройки автопереключения вкладок"
+              >
+                <div class="form-check mb-0">
+                  <input
+                    id="auto-switch-enabled"
+                    class="form-check-input"
+                    type="checkbox"
+                  />
+                  <label class="form-check-label" for="auto-switch-enabled">
+                    Автопереключение
+                  </label>
+                </div>
+                <select
+                  id="auto-switch-interval"
+                  class="form-select form-select-sm w-auto"
+                  aria-label="Интервал автопереключения"
+                >
+                  <option value="5">5 с</option>
+                  <option value="10">10 с</option>
+                  <option value="20" selected>20 с</option>
+                  <option value="30">30 с</option>
+                  <option value="60">60 с</option>
+                </select>
+              </div>
+              {{end}}
+            </div>
+
+            <section
+              id="sensors-tab-panel"
+              class="d-none pt-2"
+              role="tabpanel"
+              aria-labelledby="sensors-tab"
+            >
+              <div
+                class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2"
+              >
+                <h2 class="h4 mb-0">Датчики</h2>
+                <span id="sensor-count" class="text-secondary">
+                  {{len .Sensors}} подключено
+                </span>
+              </div>
+
+              <div id="status-error" class="alert alert-warning d-none" role="alert">
+                Не удалось обновить состояние датчиков. Показаны последние полученные
+                данные.
+              </div>
+
+              <div id="sensor-list" class="row g-2" aria-live="polite">
+              {{range .Sensors}}
+              <div
+                class="col-12 col-md-6 col-lg-4 sensor-card"
+                data-sensor-id="{{.ID}}"
+                data-sensor-name="{{.Name}}"
+                data-measurement-type="{{.MeasurementType}}"
+                data-unit="{{.Unit}}"
+                data-enabled="{{.Enabled}}"
+              >
+                <div class="card h-100 shadow-sm">
+                  <div class="card-body d-flex flex-column p-2">
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-1">
+                      <div>
+                        <h5 class="card-title mb-1">{{.Name}}</h5>
+                        <div class="text-secondary small">{{.ID}}</div>
+                      </div>
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-secondary border-0"
+                        data-action="configure-sensor"
+                        aria-label="Настроить датчик"
+                        title="Настроить датчик"
+                      >
+                        <i class="bi bi-gear" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                    <div class="mt-2">
+                      <span class="fs-2 fw-semibold">{{printf "%.1f" .Temperature}}</span>
+                      <span class="fs-4 text-secondary"> °C </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {{end}}
+              </div>
+            </section>
+
+            <div
+              id="process-tab-panel"
+              role="tabpanel"
+              aria-labelledby="process-tab"
+            >
+            <div id="no-active-run" class="text-center text-secondary py-3">
+              <i class="bi bi-bar-chart fs-4 d-block mb-1" aria-hidden="true"></i>
+              Нет активного перегона
+            </div>
+            <div id="active-media-row" class="row g-3">
+              <div id="run-chart-panel" class="d-none col-12 pt-2">
+              <div
+                id="run-chart-viewport-controls"
+                class="d-flex flex-wrap align-items-start gap-2 bg-body-tertiary rounded p-2 mb-2"
+                role="toolbar"
+                aria-label="Инструменты графика температуры"
+              >
                 <div class="d-flex flex-column align-items-start gap-1">
                   <span class="small text-secondary">Период</span>
-                  <div class="btn-group btn-group-sm" role="group" aria-label="Временной диапазон графика">
-                    <button type="button" class="btn btn-outline-secondary" data-chart-range="all">Всё</button>
-                    <button type="button" class="btn btn-outline-secondary" data-chart-range="3600000">1 ч</button>
-                    <button type="button" class="btn btn-outline-secondary" data-chart-range="1800000">30 мин</button>
-                    <button type="button" class="btn btn-outline-secondary" data-chart-range="900000">15 мин</button>
-                    <button type="button" class="btn btn-outline-secondary" data-chart-range="300000">5 мин</button>
+                  <div
+                    class="btn-group btn-group-sm"
+                    role="group"
+                    aria-label="Временной диапазон графика"
+                  >
+                    <button
+                      type="button"
+                      class="btn btn-outline-secondary"
+                      data-chart-range="all"
+                    >
+                      Всё
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-outline-secondary"
+                      data-chart-range="3600000"
+                    >
+                      1 ч
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-outline-secondary"
+                      data-chart-range="1800000"
+                    >
+                      30 мин
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-outline-secondary"
+                      data-chart-range="900000"
+                    >
+                      15 мин
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-outline-secondary"
+                      data-chart-range="300000"
+                    >
+                      5 мин
+                    </button>
                   </div>
                   <div class="d-flex flex-column align-items-start gap-2">
-                    <span class="small text-secondary text-nowrap" data-chart-visible-range aria-live="polite">—</span>
+                    <span
+                      class="small text-secondary text-nowrap"
+                      data-chart-visible-range
+                      aria-live="polite"
+                      >—</span
+                    >
                     <div class="d-none" data-chart-touch-range-controls>
-                      <button type="button" class="btn btn-outline-primary py-2" data-action="toggle-touch-range" aria-pressed="false">
-                        <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Выбрать диапазон
+                      <button
+                        type="button"
+                        class="btn btn-outline-primary py-2"
+                        data-action="toggle-touch-range"
+                        aria-pressed="false"
+                      >
+                        <i
+                          class="bi bi-arrow-left-right me-1"
+                          aria-hidden="true"
+                        ></i
+                        >Выбрать диапазон
                       </button>
                     </div>
                   </div>
                 </div>
                 <div class="d-flex flex-column align-items-start gap-1">
                   <span class="small text-secondary">Шкала Y</span>
-                  <div class="btn-group btn-group-sm" role="group" aria-label="Масштаб температуры">
-                    <button type="button" class="btn btn-outline-secondary" data-chart-y-mode="fixed">0–100 °C</button>
-                    <button type="button" class="btn btn-outline-secondary" data-chart-y-mode="auto">Авто</button>
+                  <div
+                    class="btn-group btn-group-sm"
+                    role="group"
+                    aria-label="Масштаб температуры"
+                  >
+                    <button
+                      type="button"
+                      class="btn btn-outline-secondary"
+                      data-chart-y-mode="fixed"
+                    >
+                      0–100 °C
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-outline-secondary"
+                      data-chart-y-mode="auto"
+                    >
+                      Авто
+                    </button>
                   </div>
                 </div>
                 <div class="d-flex flex-column align-items-start gap-1">
@@ -221,10 +454,29 @@
                   </button>
                 </div>
               </div>
-              <div class="alert alert-primary d-none py-2 px-3 mb-3" role="status" aria-live="polite" data-chart-touch-range-prompt>
-                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-                  <span><i class="bi bi-arrow-left-right me-2" aria-hidden="true"></i>Проведите пальцем по графику, чтобы выбрать диапазон</span>
-                  <button type="button" class="btn btn-outline-primary py-2 flex-shrink-0" data-action="cancel-touch-range">Отмена</button>
+              <div
+                class="alert alert-primary d-none py-2 px-3 mb-3"
+                role="status"
+                aria-live="polite"
+                data-chart-touch-range-prompt
+              >
+                <div
+                  class="d-flex flex-wrap justify-content-between align-items-center gap-2"
+                >
+                  <span
+                    ><i
+                      class="bi bi-arrow-left-right me-2"
+                      aria-hidden="true"
+                    ></i
+                    >Проведите пальцем по графику, чтобы выбрать диапазон</span
+                  >
+                  <button
+                    type="button"
+                    class="btn btn-outline-primary py-2 flex-shrink-0"
+                    data-action="cancel-touch-range"
+                  >
+                    Отмена
+                  </button>
                 </div>
               </div>
               <div
@@ -232,20 +484,51 @@
                 class="alert alert-info d-none d-flex justify-content-between align-items-center gap-3 py-2 mb-3"
                 role="status"
               >
-                <span data-event-pick-label>Текст сохранён. Нажмите на нужный момент графика.</span>
-                <button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0" data-action="cancel-event-pick">Отмена</button>
+                <span data-event-pick-label
+                  >Текст сохранён. Нажмите на нужный момент графика.</span
+                >
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-secondary flex-shrink-0"
+                  data-action="cancel-event-pick"
+                >
+                  Отмена
+                </button>
               </div>
-              <div id="run-chart-marker-details" class="alert alert-primary d-none mb-3" role="status">
-                <div class="d-flex justify-content-between align-items-start gap-3">
+              <div
+                id="run-chart-marker-details"
+                class="alert alert-primary d-none mb-3"
+                role="status"
+              >
+                <div
+                  class="d-flex justify-content-between align-items-start gap-3"
+                >
                   <div class="flex-grow-1">
                     <div class="fw-semibold" data-marker-text></div>
                     <time class="small" data-marker-time></time>
                     <div class="d-flex gap-2 mt-2">
-                      <button type="button" class="btn btn-sm btn-outline-primary" data-action="edit-marker">Изменить</button>
-                      <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete-marker">Удалить</button>
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-primary"
+                        data-action="edit-marker"
+                      >
+                        Изменить
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-danger"
+                        data-action="delete-marker"
+                      >
+                        Удалить
+                      </button>
                     </div>
                   </div>
-                  <button type="button" class="btn-close" data-action="close-marker-details" aria-label="Закрыть описание метки"></button>
+                  <button
+                    type="button"
+                    class="btn-close"
+                    data-action="close-marker-details"
+                    aria-label="Закрыть описание метки"
+                  ></button>
                 </div>
               </div>
               <div
@@ -271,7 +554,10 @@
                 id="run-chart-empty"
                 class="d-none text-center text-secondary py-5"
               >
-                <i class="bi bi-graph-up fs-2 d-block mb-2" aria-hidden="true"></i>
+                <i
+                  class="bi bi-graph-up fs-2 d-block mb-2"
+                  aria-hidden="true"
+                ></i>
                 <span data-chart-empty-label>Ожидаем первые измерения</span>
               </div>
               <div
@@ -284,76 +570,66 @@
                   role="img"
                 ></canvas>
               </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Sensors header -->
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h2 class="h4 mb-0">Датчики</h2>
-
-          <span id="sensor-count" class="text-secondary">
-            {{len .Sensors}} подключено
-          </span>
-        </div>
-
-        <div id="status-error" class="alert alert-warning d-none" role="alert">
-          Не удалось обновить состояние датчиков. Показаны последние полученные
-          данные.
-        </div>
-
-        <!-- Sensors -->
-        <div id="sensor-list" class="row g-3" aria-live="polite">
-          {{range .Sensors}}
-          <div
-            class="col-12 col-md-6 col-lg-4 sensor-card"
-            data-sensor-id="{{.ID}}"
-            data-sensor-name="{{.Name}}"
-            data-measurement-type="{{.MeasurementType}}"
-            data-unit="{{.Unit}}"
-            data-enabled="{{.Enabled}}"
-          >
-            <div class="card h-100 shadow-sm">
-              <div class="card-body d-flex flex-column">
-                <div
-                  class="d-flex flex-wrap justify-content-between align-items-start gap-3"
-                >
-                  <div>
-                    <h5 class="card-title mb-1">{{.Name}}</h5>
-
-                    <div class="text-secondary small">{{.ID}}</div>
-                  </div>
-
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-outline-secondary border-0"
-                    data-action="configure-sensor"
-                    aria-label="Настроить датчик"
-                    title="Настроить датчик"
-                  >
-                    <i class="bi bi-gear" aria-hidden="true"></i>
-                  </button>
-                </div>
-
-                <div class="mt-4">
-                  <span class="display-5 fw-semibold">
-                    {{printf "%.1f" .Temperature}}
-                  </span>
-
-                  <span class="fs-4 text-secondary"> °C </span>
-                </div>
               </div>
             </div>
+            </div>
+
+            {{if .CameraURL}}
+            <section
+              id="camera-tab-panel"
+              class="d-none pt-2"
+              role="tabpanel"
+              aria-labelledby="camera-tab"
+            >
+              <div
+                id="camera-content"
+                class="border rounded overflow-hidden bg-dark d-flex flex-column justify-content-center"
+              >
+                <button
+                  id="open-camera-modal"
+                  type="button"
+                  class="btn border-0 rounded-0 p-0 flex-grow-1 h-100 overflow-hidden d-flex justify-content-center align-items-center bg-dark"
+                  aria-label="Открыть увеличенный просмотр камеры"
+                >
+                  <img
+                    id="camera-stream"
+                    class="w-100 h-100 object-fit-contain d-block"
+                    alt="Прямая трансляция с камеры"
+                  />
+                </button>
+                <div
+                  id="camera-error"
+                  class="d-none text-center text-secondary py-5"
+                  role="alert"
+                >
+                  <i
+                    class="bi bi-camera-video-off fs-2 d-block mb-2"
+                    aria-hidden="true"
+                  ></i>
+                  <p class="mb-3">Камера недоступна</p>
+                  <button
+                    id="retry-camera"
+                    type="button"
+                    class="btn btn-outline-secondary"
+                  >
+                    <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>
+                    Повторить
+                  </button>
+                </div>
+              </div>
+            </section>
+            {{end}}
           </div>
-          {{end}}
+            </div>
+          </div>
         </div>
 
         <template id="sensor-card-template">
           <div class="col-12 col-md-6 col-lg-4 sensor-card">
             <div class="card h-100 shadow-sm">
-              <div class="card-body d-flex flex-column">
+              <div class="card-body d-flex flex-column p-2">
                 <div
-                  class="d-flex flex-wrap justify-content-between align-items-start gap-3"
+                  class="d-flex flex-wrap justify-content-between align-items-start gap-1"
                 >
                   <div>
                     <h5 class="card-title mb-1" data-field="name"></h5>
@@ -371,16 +647,16 @@
                   </button>
                 </div>
 
-                <div class="mt-4">
+                <div class="mt-2">
                   <span
-                    class="display-5 fw-semibold"
+                    class="fs-2 fw-semibold"
                     data-field="temperature"
                   ></span>
                   <span class="fs-4 text-secondary"> °C </span>
                 </div>
 
                 <div
-                  class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-auto pt-3"
+                  class="d-flex flex-wrap justify-content-between align-items-center gap-1 mt-auto pt-1"
                 >
                   <div
                     class="text-secondary small"
@@ -756,7 +1032,10 @@
           class="d-flex align-items-center gap-2 text-secondary py-5"
           role="status"
         >
-          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+          <span
+            class="spinner-border spinner-border-sm"
+            aria-hidden="true"
+          ></span>
           Загружаем историю…
         </div>
 
@@ -859,7 +1138,10 @@
                     class="badge text-bg-success d-none"
                     data-field="run-indicator"
                   >
-                    <i class="bi bi-record-circle-fill me-1" aria-hidden="true"></i>
+                    <i
+                      class="bi bi-record-circle-fill me-1"
+                      aria-hidden="true"
+                    ></i>
                     Запись
                   </span>
                 </div>
@@ -869,7 +1151,10 @@
                   <time data-field="run-started"></time>
                   <span>
                     Длительность
-                    <span class="font-monospace" data-field="run-duration"></span>
+                    <span
+                      class="font-monospace"
+                      data-field="run-duration"
+                    ></span>
                   </span>
                 </div>
               </div>
@@ -886,48 +1171,138 @@
           </div>
         </template>
 
-        <div
-          id="history-chart-panel"
-          class="d-none border-top mt-3 pt-3"
-        >
-          <div id="history-chart-viewport-controls" class="d-flex flex-wrap align-items-start gap-3 bg-body-tertiary rounded p-3 mb-3" role="toolbar" aria-label="Инструменты графика температуры">
+        <div id="history-chart-panel" class="d-none border-top mt-3 pt-3">
+          <div
+            id="history-chart-viewport-controls"
+            class="d-flex flex-wrap align-items-start gap-3 bg-body-tertiary rounded p-3 mb-3"
+            role="toolbar"
+            aria-label="Инструменты графика температуры"
+          >
             <div class="d-flex flex-column align-items-start gap-1">
               <span class="small text-secondary">Период</span>
-              <div class="btn-group btn-group-sm" role="group" aria-label="Временной диапазон графика">
-                <button type="button" class="btn btn-outline-secondary" data-chart-range="all">Всё</button>
-                <button type="button" class="btn btn-outline-secondary" data-chart-range="3600000">1 ч</button>
-                <button type="button" class="btn btn-outline-secondary" data-chart-range="1800000">30 мин</button>
-                <button type="button" class="btn btn-outline-secondary" data-chart-range="900000">15 мин</button>
-                <button type="button" class="btn btn-outline-secondary" data-chart-range="300000">5 мин</button>
+              <div
+                class="btn-group btn-group-sm"
+                role="group"
+                aria-label="Временной диапазон графика"
+              >
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary"
+                  data-chart-range="all"
+                >
+                  Всё
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary"
+                  data-chart-range="3600000"
+                >
+                  1 ч
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary"
+                  data-chart-range="1800000"
+                >
+                  30 мин
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary"
+                  data-chart-range="900000"
+                >
+                  15 мин
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary"
+                  data-chart-range="300000"
+                >
+                  5 мин
+                </button>
               </div>
               <div class="d-flex flex-column align-items-start gap-2">
-                <span class="small text-secondary text-nowrap" data-chart-visible-range aria-live="polite">—</span>
+                <span
+                  class="small text-secondary text-nowrap"
+                  data-chart-visible-range
+                  aria-live="polite"
+                  >—</span
+                >
                 <div class="d-none" data-chart-touch-range-controls>
-                  <button type="button" class="btn btn-outline-primary py-2" data-action="toggle-touch-range" aria-pressed="false">
-                    <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Выбрать диапазон
+                  <button
+                    type="button"
+                    class="btn btn-outline-primary py-2"
+                    data-action="toggle-touch-range"
+                    aria-pressed="false"
+                  >
+                    <i
+                      class="bi bi-arrow-left-right me-1"
+                      aria-hidden="true"
+                    ></i
+                    >Выбрать диапазон
                   </button>
                 </div>
               </div>
             </div>
             <div class="d-flex flex-column align-items-start gap-1">
               <span class="small text-secondary">Шкала Y</span>
-              <div class="btn-group btn-group-sm" role="group" aria-label="Масштаб температуры">
-                <button type="button" class="btn btn-outline-secondary" data-chart-y-mode="fixed">0–100 °C</button>
-                <button type="button" class="btn btn-outline-secondary" data-chart-y-mode="auto">Авто</button>
+              <div
+                class="btn-group btn-group-sm"
+                role="group"
+                aria-label="Масштаб температуры"
+              >
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary"
+                  data-chart-y-mode="fixed"
+                >
+                  0–100 °C
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary"
+                  data-chart-y-mode="auto"
+                >
+                  Авто
+                </button>
               </div>
             </div>
             <div class="d-flex flex-column align-items-start gap-1">
               <span class="small text-secondary">Метки</span>
-              <button id="add-history-run-event" type="button" class="btn btn-sm btn-outline-primary" disabled>
-                <i class="bi bi-bookmark-plus me-1" aria-hidden="true"></i>Добавить метку
+              <button
+                id="add-history-run-event"
+                type="button"
+                class="btn btn-sm btn-outline-primary"
+                disabled
+              >
+                <i class="bi bi-bookmark-plus me-1" aria-hidden="true"></i
+                >Добавить метку
               </button>
-              <div id="history-add-event-reason" class="small text-secondary">Загружаем график…</div>
+              <div id="history-add-event-reason" class="small text-secondary">
+                Загружаем график…
+              </div>
             </div>
           </div>
-          <div class="alert alert-primary d-none py-2 px-3 mb-3" role="status" aria-live="polite" data-chart-touch-range-prompt>
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-              <span><i class="bi bi-arrow-left-right me-2" aria-hidden="true"></i>Проведите пальцем по графику, чтобы выбрать диапазон</span>
-              <button type="button" class="btn btn-outline-primary py-2 flex-shrink-0" data-action="cancel-touch-range">Отмена</button>
+          <div
+            class="alert alert-primary d-none py-2 px-3 mb-3"
+            role="status"
+            aria-live="polite"
+            data-chart-touch-range-prompt
+          >
+            <div
+              class="d-flex flex-wrap justify-content-between align-items-center gap-2"
+            >
+              <span
+                ><i class="bi bi-arrow-left-right me-2" aria-hidden="true"></i
+                >Проведите пальцем по графику, чтобы выбрать диапазон</span
+              >
+              <button
+                type="button"
+                class="btn btn-outline-primary py-2 flex-shrink-0"
+                data-action="cancel-touch-range"
+              >
+                Отмена
+              </button>
             </div>
           </div>
           <div
@@ -935,20 +1310,49 @@
             class="alert alert-info d-none d-flex justify-content-between align-items-center gap-3 py-2 mb-3"
             role="status"
           >
-            <span data-event-pick-label>Текст сохранён. Нажмите на нужный момент графика.</span>
-            <button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0" data-action="cancel-event-pick">Отмена</button>
+            <span data-event-pick-label
+              >Текст сохранён. Нажмите на нужный момент графика.</span
+            >
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary flex-shrink-0"
+              data-action="cancel-event-pick"
+            >
+              Отмена
+            </button>
           </div>
-          <div id="history-chart-marker-details" class="alert alert-primary d-none mb-3" role="status">
+          <div
+            id="history-chart-marker-details"
+            class="alert alert-primary d-none mb-3"
+            role="status"
+          >
             <div class="d-flex justify-content-between align-items-start gap-3">
               <div class="flex-grow-1">
                 <div class="fw-semibold" data-marker-text></div>
                 <time class="small" data-marker-time></time>
                 <div class="d-flex gap-2 mt-2">
-                  <button type="button" class="btn btn-sm btn-outline-primary" data-action="edit-marker">Изменить</button>
-                  <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete-marker">Удалить</button>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-primary"
+                    data-action="edit-marker"
+                  >
+                    Изменить
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-danger"
+                    data-action="delete-marker"
+                  >
+                    Удалить
+                  </button>
                 </div>
               </div>
-              <button type="button" class="btn-close" data-action="close-marker-details" aria-label="Закрыть описание метки"></button>
+              <button
+                type="button"
+                class="btn-close"
+                data-action="close-marker-details"
+                aria-label="Закрыть описание метки"
+              ></button>
             </div>
           </div>
           <div
@@ -963,7 +1367,10 @@
             class="d-flex align-items-center gap-2 text-secondary py-4"
             role="status"
           >
-            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <span
+              class="spinner-border spinner-border-sm"
+              aria-hidden="true"
+            ></span>
             Загружаем измерения…
           </div>
           <div
@@ -987,6 +1394,30 @@
       </section>
     </main>
 
+    {{if .CameraURL}}
+    <div
+      class="modal"
+      id="camera-modal"
+      tabindex="-1"
+      aria-label="Полноэкранный просмотр камеры"
+    >
+      <div class="modal-dialog modal-fullscreen m-0">
+        <div class="modal-content bg-black border-0 rounded-0">
+            <button
+              id="close-camera-viewer"
+              type="button"
+              class="btn-close btn-close-white position-absolute top-0 end-0 m-3 p-3 bg-body-secondary z-3"
+              aria-label="Закрыть"
+            ></button>
+          <div
+            id="camera-modal-body"
+            class="modal-body p-0 d-flex justify-content-center align-items-center bg-black overflow-hidden"
+          ></div>
+        </div>
+      </div>
+    </div>
+    {{end}}
+
     <div
       class="modal fade"
       id="run-event-modal"
@@ -998,42 +1429,125 @@
         <form id="run-event-form" class="modal-content" novalidate>
           <div class="modal-header">
             <h2 class="modal-title fs-5" id="run-event-title">Новая метка</h2>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Закрыть"
+            ></button>
           </div>
           <div class="modal-body">
-            <div id="run-event-error" class="alert alert-danger d-none" role="alert"></div>
+            <div
+              id="run-event-error"
+              class="alert alert-danger d-none"
+              role="alert"
+            ></div>
             <div class="mb-3">
-              <label for="run-event-text" class="form-label">Что произошло</label>
-              <textarea id="run-event-text" class="form-control" rows="3" maxlength="200" required></textarea>
+              <label for="run-event-text" class="form-label"
+                >Что произошло</label
+              >
+              <textarea
+                id="run-event-text"
+                class="form-control"
+                rows="3"
+                maxlength="200"
+                required
+              ></textarea>
               <div class="invalid-feedback">Введите текст метки.</div>
               <div class="form-text">Обязательное поле, до 200 символов.</div>
             </div>
             <div class="border rounded p-3">
               <div class="small text-secondary mb-1">Время метки</div>
-              <div id="run-event-time-description" class="fw-semibold">Сейчас</div>
-              <div id="run-event-elapsed" class="small text-secondary d-none"></div>
+              <div id="run-event-time-description" class="fw-semibold">
+                Сейчас
+              </div>
+              <div
+                id="run-event-elapsed"
+                class="small text-secondary d-none"
+              ></div>
               <div id="run-event-adjustments" class="d-none mt-3">
                 <div class="row g-2" aria-label="Коррекция времени метки">
-                  <div class="col-6 col-sm-3"><button type="button" class="btn btn-outline-secondary w-100 py-2" data-event-time-offset="-60000">−1 мин</button></div>
-                  <div class="col-6 col-sm-3"><button type="button" class="btn btn-outline-secondary w-100 py-2" data-event-time-offset="-10000">−10 сек</button></div>
-                  <div class="col-6 col-sm-3"><button type="button" class="btn btn-outline-secondary w-100 py-2" data-event-time-offset="10000">+10 сек</button></div>
-                  <div class="col-6 col-sm-3"><button type="button" class="btn btn-outline-secondary w-100 py-2" data-event-time-offset="60000">+1 мин</button></div>
+                  <div class="col-6 col-sm-3">
+                    <button
+                      type="button"
+                      class="btn btn-outline-secondary w-100 py-2"
+                      data-event-time-offset="-60000"
+                    >
+                      −1 мин
+                    </button>
+                  </div>
+                  <div class="col-6 col-sm-3">
+                    <button
+                      type="button"
+                      class="btn btn-outline-secondary w-100 py-2"
+                      data-event-time-offset="-10000"
+                    >
+                      −10 сек
+                    </button>
+                  </div>
+                  <div class="col-6 col-sm-3">
+                    <button
+                      type="button"
+                      class="btn btn-outline-secondary w-100 py-2"
+                      data-event-time-offset="10000"
+                    >
+                      +10 сек
+                    </button>
+                  </div>
+                  <div class="col-6 col-sm-3">
+                    <button
+                      type="button"
+                      class="btn btn-outline-secondary w-100 py-2"
+                      data-event-time-offset="60000"
+                    >
+                      +1 мин
+                    </button>
+                  </div>
                 </div>
-                <button id="reset-run-event-time" type="button" class="btn btn-link btn-sm px-0 mt-2 d-none">Вернуть сейчас</button>
+                <button
+                  id="reset-run-event-time"
+                  type="button"
+                  class="btn btn-link btn-sm px-0 mt-2 d-none"
+                >
+                  Вернуть сейчас
+                </button>
               </div>
-              <button id="pick-run-event-time" type="button" class="btn btn-sm btn-outline-secondary mt-3">
+              <button
+                id="pick-run-event-time"
+                type="button"
+                class="btn btn-sm btn-outline-secondary mt-3"
+              >
                 <i class="bi bi-crosshair me-1" aria-hidden="true"></i>
                 Выбрать на графике
               </button>
-              <div id="run-event-pick-unavailable" class="form-text d-none">Выбор станет доступен после появления измерений.</div>
+              <div id="run-event-pick-unavailable" class="form-text d-none">
+                Выбор станет доступен после появления измерений.
+              </div>
             </div>
           </div>
           <div class="modal-footer flex-column align-items-stretch">
-            <div class="d-flex flex-column-reverse flex-sm-row justify-content-sm-end gap-2 w-100">
-              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
-              <button id="submit-run-event" type="submit" class="btn btn-primary">Добавить</button>
+            <div
+              class="d-flex flex-column-reverse flex-sm-row justify-content-sm-end gap-2 w-100"
+            >
+              <button
+                type="button"
+                class="btn btn-outline-secondary"
+                data-bs-dismiss="modal"
+              >
+                Отмена
+              </button>
+              <button
+                id="submit-run-event"
+                type="submit"
+                class="btn btn-primary"
+              >
+                Добавить
+              </button>
             </div>
-            <div id="run-event-disabled-reason" class="small text-secondary text-center text-sm-end"></div>
+            <div
+              id="run-event-disabled-reason"
+              class="small text-secondary text-center text-sm-end"
+            ></div>
           </div>
         </form>
       </div>
@@ -1049,26 +1563,60 @@
       <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <form id="delete-run-event-form" class="modal-content">
           <div class="modal-header">
-            <h2 class="modal-title fs-5" id="delete-run-event-title">Удалить метку?</h2>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            <h2 class="modal-title fs-5" id="delete-run-event-title">
+              Удалить метку?
+            </h2>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Закрыть"
+            ></button>
           </div>
           <div class="modal-body">
-            <div id="delete-run-event-error" class="alert alert-danger d-none" role="alert"></div>
+            <div
+              id="delete-run-event-error"
+              class="alert alert-danger d-none"
+              role="alert"
+            ></div>
             <p id="delete-run-event-text" class="mb-0 text-break"></p>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
-            <button id="submit-delete-run-event" type="submit" class="btn btn-danger">Удалить</button>
+            <button
+              type="button"
+              class="btn btn-outline-secondary"
+              data-bs-dismiss="modal"
+            >
+              Отмена
+            </button>
+            <button
+              id="submit-delete-run-event"
+              type="submit"
+              class="btn btn-danger"
+            >
+              Удалить
+            </button>
           </div>
         </form>
       </div>
     </div>
 
     <div class="toast-container position-fixed bottom-0 end-0 p-3">
-      <div id="run-event-success" class="toast text-bg-success border-0" role="status" aria-live="polite" aria-atomic="true">
+      <div
+        id="run-event-success"
+        class="toast text-bg-success border-0"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         <div class="d-flex">
           <div class="toast-body">Метка добавлена</div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Закрыть"></button>
+          <button
+            type="button"
+            class="btn-close btn-close-white me-2 m-auto"
+            data-bs-dismiss="toast"
+            aria-label="Закрыть"
+          ></button>
         </div>
       </div>
     </div>

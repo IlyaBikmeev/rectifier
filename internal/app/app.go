@@ -17,6 +17,7 @@ import (
 
 func Run(
 	version string,
+	cameraURL string,
 	sensorRegistry registry.SensorRegistry,
 	sensorRepository storage.SensorRepository,
 	batchRepository storage.BatchRepository,
@@ -64,6 +65,7 @@ func Run(
 
 	router := newRouter(
 		version,
+		cameraURL,
 		appState,
 		sensorRepository,
 		batchRepository,

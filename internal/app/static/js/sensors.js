@@ -32,6 +32,7 @@ export function initSensors({
   const sensorList = document.getElementById("sensor-list");
   const sensorCount = document.getElementById("sensor-count");
   const sensorCardTemplate = document.getElementById("sensor-card-template");
+  const temperatureSummary = document.getElementById("temperature-summary");
   const statusError = document.getElementById("status-error");
   const settingsModalElement = document.getElementById(
     "sensor-settings-modal",
@@ -95,8 +96,51 @@ export function initSensors({
     sensorCount.textContent = `${sensors.length} подключено`;
   }
 
+  function renderTemperatureSummary(sensors, synchronized = true) {
+    const items = document.createDocumentFragment();
+
+    if (sensors.length === 0) {
+      const empty = document.createElement("span");
+      empty.className = "text-secondary";
+      empty.textContent = "Датчики не подключены";
+      temperatureSummary.replaceChildren(empty);
+      return;
+    }
+
+    sensors.forEach((sensor, index) => {
+      if (index > 0) {
+        const separator = document.createElement("span");
+        separator.className = "text-secondary";
+        separator.setAttribute("aria-hidden", "true");
+        separator.textContent = "·";
+        items.append(separator);
+      }
+
+      const item = document.createElement("span");
+      const value = document.createElement("strong");
+      item.textContent = `${sensor.name}: `;
+      if (!synchronized) {
+        value.textContent = "обновление недоступно";
+        value.className = "text-warning";
+      } else if (!sensor.enabled) {
+        value.textContent = "отключён";
+        value.className = "text-secondary";
+      } else if (!sensor.available || !Number.isFinite(sensor.temperature)) {
+        value.textContent = "недоступен";
+        value.className = "text-danger";
+      } else {
+        value.textContent = `${sensor.temperature.toFixed(1)} °C`;
+      }
+      item.append(value);
+      items.append(item);
+    });
+
+    temperatureSummary.replaceChildren(items);
+  }
+
   function publishSensors() {
     renderSensors(latestSensors);
+    renderTemperatureSummary(latestSensors);
     onSensorsChanged(latestSensors);
   }
 
@@ -114,6 +158,7 @@ export function initSensors({
     } catch (error) {
       console.error("Failed to load status:", error);
       statusError.classList.remove("d-none");
+      renderTemperatureSummary(latestSensors, false);
       onSyncChanged(false);
     }
   }

@@ -22,6 +22,20 @@ HTTP-ответа также остаются в журнале и не созд
 `/var/lib/rectifier/rectifier.db`. Рядом с БД во время работы могут быть WAL- и
 SHM-файлы; это нормально.
 
+Чтобы включить uStreamer в установленном сервисе, добавьте параметр запуска
+через systemd override (подставьте свой URL в обе строки `ExecStart`):
+
+```ini
+[Service]
+ExecStart=
+ExecStart=/usr/local/bin/rectifier -sensor-mode=ds18b20 -db-path=/var/lib/rectifier/rectifier.db -camera-url=http://rectifier-test.local:8081/stream
+```
+
+Откройте override командой `sudo systemctl edit rectifier`, затем выполните
+`sudo systemctl daemon-reload && sudo systemctl restart rectifier`. Адрес должен
+быть доступен из браузеров пользователей. HTTPS-страница может блокировать
+HTTP-поток как mixed content.
+
 ## Резервная копия SQLite
 
 Не копируйте только открытый `.db` во время записи. Для согласованного snapshot
@@ -92,3 +106,7 @@ sudo userdel rectifier
   каталог `/sys/bus/w1/devices` недоступен, сервис завершится с ошибкой
   discovery. Runtime rescan пока не реализован — после подключения нового
   датчика перезапустите сервис.
+- Вкладки камеры нет: проверьте, что сервис запущен с непустым `-camera-url`.
+- Камера показывает ошибку: откройте URL потока напрямую на том же устройстве,
+  где открыт UI, и проверьте mixed-content ограничения браузера. Rectifier не
+  проксирует поток через Go.

@@ -9,6 +9,7 @@ import (
 
 func newRouter(
 	version string,
+	cameraURL string,
 	appState *AppState,
 	sensorRepository storage.SensorRepository,
 	batchRepository storage.BatchRepository,
@@ -21,7 +22,7 @@ func newRouter(
 	mux.HandleFunc("GET /static/", handleStatic)
 	mux.HandleFunc("GET /icon.png", handleIcon)
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		handleIndex(w, r, appState, version)
+		handleIndex(w, r, appState, version, cameraURL)
 	})
 	mux.HandleFunc("GET /api/process", func(w http.ResponseWriter, r *http.Request) {
 		handleProcess(w, r, appState)

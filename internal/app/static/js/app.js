@@ -1,4 +1,6 @@
 import { createRunChart } from "./chart.js";
+import { initAutoSwitch } from "./auto-switch.js";
+import { initCamera } from "./camera.js";
 import { initHistory } from "./history.js";
 import { initRouter } from "./router.js";
 import { initRunEvents } from "./run-events.js";
@@ -20,9 +22,27 @@ const chart = createRunChart({
   markerDetails: document.getElementById("run-chart-marker-details"),
   onEditMarker: (event) => runEvents.openEdit(event, chart),
   onDeleteMarker: (event) => runEvents.openDelete(event, chart),
+  fitViewport: true,
 });
 
-const runs = initRuns({ chart, runEvents, pollingInterval });
+const camera = initCamera({ onProcessShown: chart.fitToViewport });
+const autoSwitch = initAutoSwitch({ camera });
+
+let resizeFrame = null;
+window.addEventListener("resize", () => {
+  if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+  resizeFrame = requestAnimationFrame(() => {
+    resizeFrame = null;
+    chart.fitToViewport();
+    camera.resize();
+  });
+});
+
+const runs = initRuns({
+  chart,
+  runEvents,
+  pollingInterval,
+});
 
 const historyChart = createRunChart({
   panel: document.getElementById("history-chart-panel"),
@@ -51,7 +71,11 @@ initRouter({
     ["#/history", document.getElementById("history-view")],
   ]),
   navigationElement: document.getElementById("main-navigation"),
-  onRouteChanged: (route) => history.setActive(route === "#/history"),
+  onRouteChanged: (route) => {
+    history.setActive(route === "#/history");
+    camera.setActive(route === "#/");
+    autoSwitch.setRouteActive(route === "#/");
+  },
 });
 
 initSensors({
