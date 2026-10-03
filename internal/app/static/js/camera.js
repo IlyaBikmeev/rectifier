@@ -1,3 +1,5 @@
+const cameraPort = "8081";
+
 export function initCamera() {
   const homeView = document.getElementById("home-view");
   const tabButtons = [...document.querySelectorAll("[data-home-tab]")];
@@ -7,30 +9,22 @@ export function initCamera() {
       .filter(([, panel]) => panel),
   );
   const cameraPanel = panels.get("camera");
-  const hasCamera = Boolean(homeView?.dataset.cameraUrl && cameraPanel);
-
-  const cameraContent = hasCamera
-    ? document.getElementById("camera-content")
-    : null;
-  const stream = hasCamera ? document.getElementById("camera-stream") : null;
-  const streamButton = hasCamera
-    ? document.getElementById("open-camera-modal")
-    : null;
-  const error = hasCamera ? document.getElementById("camera-error") : null;
-  const retryButton = hasCamera ? document.getElementById("retry-camera") : null;
-  const modalElement = hasCamera
-    ? document.getElementById("camera-modal")
-    : null;
-  const modalBody = hasCamera
-    ? document.getElementById("camera-modal-body")
-    : null;
-  const closeViewerButton = hasCamera
-    ? document.getElementById("close-camera-viewer")
-    : null;
-  const modal = hasCamera
+  const cameraCapabilityElements = [
+    ...document.querySelectorAll("[data-camera-capability]"),
+  ];
+  const cameraContent = document.getElementById("camera-content");
+  const stream = document.getElementById("camera-stream");
+  const streamButton = document.getElementById("open-camera-modal");
+  const error = document.getElementById("camera-error");
+  const retryButton = document.getElementById("retry-camera");
+  const modalElement = document.getElementById("camera-modal");
+  const modalBody = document.getElementById("camera-modal-body");
+  const closeViewerButton = document.getElementById("close-camera-viewer");
+  const modal = modalElement
     ? window.bootstrap.Modal.getOrCreateInstance(modalElement)
     : null;
 
+  let cameraAvailable = false;
   let selectedTab = "process";
   const scrollPositions = new Map([...panels.keys()].map((tab) => [tab, 0]));
   let routeActive = true;
@@ -39,10 +33,47 @@ export function initCamera() {
   let nativeFullscreenActive = false;
   let viewerOpener = null;
 
+  function cameraStreamURL() {
+    const url = new URL(window.location.href);
+    url.port = cameraPort;
+    url.pathname = "/stream";
+    url.search = "";
+    url.hash = "";
+    return url;
+  }
+
   function streamURLForAttempt() {
-    const url = new URL(homeView.dataset.cameraUrl);
+    const url = cameraStreamURL();
     if (retryNumber > 0) url.searchParams.set("camera_retry", retryNumber);
     return url.href;
+  }
+
+  function revealCameraCapability() {
+    if (cameraAvailable) return;
+    cameraAvailable = true;
+    for (const element of cameraCapabilityElements) {
+      element.classList.remove("d-none");
+      if (element.tagName === "DIV") element.classList.add("d-flex");
+    }
+    document.dispatchEvent(new CustomEvent("rectifier:camera-available"));
+  }
+
+  function detectCamera() {
+    if (!cameraPanel || !stream) return;
+
+    const probe = new Image();
+    const cleanup = () => {
+      probe.onload = null;
+      probe.onerror = null;
+      probe.removeAttribute("src");
+    };
+
+    probe.onload = () => {
+      cleanup();
+      revealCameraCapability();
+    };
+    probe.onerror = cleanup;
+    probe.src = cameraStreamURL().href;
   }
 
   function disconnect() {
@@ -50,14 +81,14 @@ export function initCamera() {
   }
 
   function connect() {
-    if (!hasCamera || !routeActive || selectedTab !== "camera") return;
+    if (!cameraAvailable || !routeActive || selectedTab !== "camera") return;
     error.classList.add("d-none");
     streamButton.classList.remove("d-none");
     if (!stream.hasAttribute("src")) stream.src = streamURLForAttempt();
   }
 
   function resize() {
-    if (!hasCamera) return;
+    if (!cameraAvailable) return;
     const fitViewport = window.innerWidth >= 768 && window.innerHeight >= 500;
     if (!fitViewport) {
       cameraContent.style.removeProperty("height");
@@ -117,6 +148,7 @@ export function initCamera() {
 
   function selectTab(tab) {
     if (!panels.has(tab)) return;
+    if (tab === "camera" && !cameraAvailable) return;
     const changingTab = selectedTab !== tab;
     if (changingTab) scrollPositions.set(selectedTab, window.scrollY);
     selectedTab = tab;
@@ -154,7 +186,7 @@ export function initCamera() {
     button.addEventListener("click", () => selectTab(button.dataset.homeTab));
   }
 
-  if (hasCamera) {
+  if (cameraPanel && stream && streamButton && error && retryButton && modalElement && modalBody && closeViewerButton && modal) {
     retryButton.addEventListener("click", () => {
       retryNumber += 1;
       disconnect();
@@ -204,6 +236,7 @@ export function initCamera() {
   }
 
   selectTab("process");
+  detectCamera();
 
   return {
     resize,
