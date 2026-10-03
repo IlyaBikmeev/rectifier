@@ -23,7 +23,7 @@ jobs:
         run: go test ./...
 
       - name: Check installer syntax
-        run: sh -n packaging/install.sh packaging/install-release.sh
+        run: sh -n packaging/install.sh packaging/install-release.sh packaging/start-camera.sh
 
       - name: Build archive
         env:
@@ -38,7 +38,9 @@ jobs:
           go build -trimpath -ldflags="-s -w -X main.version=$GITHUB_REF_NAME" -o "$stage/rectifier" ./cmd/rectifier
           install -m 0755 packaging/install.sh "$stage/install.sh"
           install -m 0644 packaging/rectifier.service "$stage/rectifier.service"
-          tar -C "$stage" -czf "$archive" rectifier install.sh rectifier.service
+          install -m 0644 packaging/rectifier-camera.service "$stage/rectifier-camera.service"
+          install -m 0755 packaging/start-camera.sh "$stage/start-camera.sh"
+          tar -C "$stage" -czf "$archive" rectifier install.sh rectifier.service rectifier-camera.service start-camera.sh
           sha256sum "$archive" > "$archive.sha256"
 
       - name: Publish GitHub Release
