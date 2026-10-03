@@ -108,7 +108,25 @@ sudo ./install.sh
 Установщик можно запускать повторно: он обновляет бинарник и unit, но не удаляет
 и не перезаписывает `/var/lib/rectifier/rectifier.db`.
 
-## 4. Проверьте работу
+## 4. Камера (опционально)
+
+Для USB-камеры установите uStreamer и `v4l2-ctl`, затем запустите отдельный сервис:
+
+```bash
+sudo systemctl enable --now rectifier-camera
+```
+
+Rectifier автоматически находит V4L2-устройство с поддержкой MJPEG. Если поток
+доступен на порту `8081`, вкладка «Камера» появится в UI автоматически.
+
+Проверка:
+
+```bash
+systemctl status rectifier-camera --no-pager
+journalctl -u rectifier-camera -n 50 --no-pager
+```
+
+## 5. Проверьте работу
 
 ```bash
 systemctl status rectifier --no-pager

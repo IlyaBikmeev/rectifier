@@ -100,7 +100,6 @@
         id="home-view"
         class="d-flex flex-column"
         aria-labelledby="home-title"
-        {{if .CameraURL}}data-camera-url="{{.CameraURL}}"{{end}}
       >
         <h1 class="visually-hidden" id="home-title">
           Мониторинг ректификационной колонны
@@ -230,8 +229,7 @@
                   Процесс
                 </button>
               </li>
-              {{if .CameraURL}}
-              <li class="nav-item" role="presentation">
+              <li class="nav-item d-none" role="presentation" data-camera-capability>
                 <button
                   id="camera-tab"
                   type="button"
@@ -244,11 +242,10 @@
                   Камера
                 </button>
               </li>
-              {{end}}
               </ul>
-              {{if .CameraURL}}
               <div
-                class="d-flex flex-wrap align-items-center gap-2 pb-1 ms-auto"
+                class="d-none flex-wrap align-items-center gap-2 pb-1 ms-auto"
+                data-camera-capability
                 aria-label="Настройки автопереключения вкладок"
               >
                 <div class="form-check mb-0">
@@ -273,7 +270,6 @@
                   <option value="60">60 с</option>
                 </select>
               </div>
-              {{end}}
             </div>
 
             <section
@@ -573,8 +569,7 @@
             </div>
             </div>
 
-            {{if .CameraURL}}
-            <section
+                        <section
               id="camera-tab-panel"
               class="d-none pt-2"
               role="tabpanel"
@@ -617,7 +612,6 @@
                 </div>
               </div>
             </section>
-            {{end}}
           </div>
             </div>
           </div>
@@ -1393,7 +1387,6 @@
       </section>
     </main>
 
-    {{if .CameraURL}}
     <div
       class="modal"
       id="camera-modal"
@@ -1415,7 +1408,6 @@
         </div>
       </div>
     </div>
-    {{end}}
 
     <div
       class="modal fade"

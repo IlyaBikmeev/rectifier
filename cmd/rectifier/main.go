@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net/url"
 	"rectifier/internal/app"
 	"rectifier/internal/registry"
 	"rectifier/internal/sensor"
@@ -31,17 +30,7 @@ func main() {
 		"DB path",
 	)
 
-	cameraURL := flag.String(
-		"camera-url",
-		"",
-		"MJPEG camera stream URL (HTTP or HTTPS)",
-	)
-
 	flag.Parse()
-
-	if err := validateCameraURL(*cameraURL); err != nil {
-		log.Fatalf("invalid camera URL: %v", err)
-	}
 
 	var sensors []sensor.TemperatureSensor
 
@@ -97,24 +86,6 @@ func main() {
 	measurementRepository := storage.NewSQLiteMeasurementRepository(db)
 	runEventRepository := storage.NewRunEventRepository(db)
 
-	app.Run(version, *cameraURL, sensorRegistry, sensorRepository, batchRepository, runRepository, measurementRepository, runEventRepository)
+	app.Run(version, sensorRegistry, sensorRepository, batchRepository, runRepository, measurementRepository, runEventRepository)
 }
 
-func validateCameraURL(rawURL string) error {
-	if rawURL == "" {
-		return nil
-	}
-
-	parsedURL, err := url.Parse(rawURL)
-	if err != nil {
-		return fmt.Errorf("parse URL: %w", err)
-	}
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return fmt.Errorf("scheme must be http or https")
-	}
-	if parsedURL.Host == "" {
-		return fmt.Errorf("host must not be empty")
-	}
-
-	return nil
-}
