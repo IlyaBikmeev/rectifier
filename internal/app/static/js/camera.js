@@ -32,6 +32,7 @@ export function initCamera() {
     : null;
 
   let selectedTab = "process";
+  const scrollPositions = new Map([...panels.keys()].map((tab) => [tab, 0]));
   let routeActive = true;
   let retryNumber = 0;
   let viewerOpen = false;
@@ -96,6 +97,8 @@ export function initCamera() {
 
   function selectTab(tab) {
     if (!panels.has(tab)) return;
+    const changingTab = selectedTab !== tab;
+    if (changingTab) scrollPositions.set(selectedTab, window.scrollY);
     selectedTab = tab;
 
     for (const [name, panel] of panels) {
@@ -114,6 +117,12 @@ export function initCamera() {
     if (tab === "camera" && routeActive) {
       connect();
       requestAnimationFrame(resize);
+    }
+    if (changingTab) {
+      requestAnimationFrame(() => {
+        if (selectedTab !== tab) return;
+        window.scrollTo(window.scrollX, scrollPositions.get(tab));
+      });
     }
 
     document.dispatchEvent(
