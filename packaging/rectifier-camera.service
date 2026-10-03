@@ -1,0 +1,18 @@
+[Unit]
+Description=Rectifier camera stream
+After=network.target
+
+[Service]
+Type=simple
+User=rectifier
+Group=rectifier
+SupplementaryGroups=video
+ExecStart=/usr/local/lib/rectifier/start-camera.sh
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
