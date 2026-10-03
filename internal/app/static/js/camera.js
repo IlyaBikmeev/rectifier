@@ -75,6 +75,26 @@ export function initCamera() {
     requestAnimationFrame(() => opener?.focus());
   }
 
+  function restoreScrollPosition(y) {
+    const rootStyle = document.documentElement.style;
+    const scrollBehavior = rootStyle.getPropertyValue("scroll-behavior");
+    const scrollBehaviorPriority = rootStyle.getPropertyPriority("scroll-behavior");
+    rootStyle.setProperty("scroll-behavior", "auto", "important");
+    try {
+      window.scrollTo(window.scrollX, y);
+    } finally {
+      if (scrollBehavior) {
+        rootStyle.setProperty(
+          "scroll-behavior",
+          scrollBehavior,
+          scrollBehaviorPriority,
+        );
+      } else {
+        rootStyle.removeProperty("scroll-behavior");
+      }
+    }
+  }
+
   function closeViewer() {
     if (!viewerOpen) return;
     viewerOpen = false;
@@ -121,7 +141,7 @@ export function initCamera() {
     if (changingTab) {
       requestAnimationFrame(() => {
         if (selectedTab !== tab) return;
-        window.scrollTo(window.scrollX, scrollPositions.get(tab));
+        restoreScrollPosition(scrollPositions.get(tab));
       });
     }
 
