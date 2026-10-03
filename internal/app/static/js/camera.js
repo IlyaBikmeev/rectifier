@@ -1,4 +1,4 @@
-export function initCamera({ onProcessShown = () => {} } = {}) {
+export function initCamera() {
   const homeView = document.getElementById("home-view");
   const tabButtons = [...document.querySelectorAll("[data-home-tab]")];
   const panels = new Map(
@@ -111,7 +111,6 @@ export function initCamera({ onProcessShown = () => {} } = {}) {
       closeViewer();
       disconnect();
     }
-    if (tab === "process") requestAnimationFrame(onProcessShown);
     if (tab === "camera" && routeActive) {
       connect();
       requestAnimationFrame(resize);

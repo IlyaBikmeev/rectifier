@@ -22,10 +22,9 @@ const chart = createRunChart({
   markerDetails: document.getElementById("run-chart-marker-details"),
   onEditMarker: (event) => runEvents.openEdit(event, chart),
   onDeleteMarker: (event) => runEvents.openDelete(event, chart),
-  fitViewport: true,
 });
 
-const camera = initCamera({ onProcessShown: chart.fitToViewport });
+const camera = initCamera();
 const autoSwitch = initAutoSwitch({ camera });
 
 let resizeFrame = null;
@@ -33,7 +32,6 @@ window.addEventListener("resize", () => {
   if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
   resizeFrame = requestAnimationFrame(() => {
     resizeFrame = null;
-    chart.fitToViewport();
     camera.resize();
   });
 });

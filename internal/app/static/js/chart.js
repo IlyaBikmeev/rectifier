@@ -422,7 +422,6 @@ export function createRunChart({
   markerDetails,
   onEditMarker,
   onDeleteMarker,
-  fitViewport = false,
 }) {
   let chart = null;
   let runID = null;
@@ -888,27 +887,6 @@ export function createRunChart({
     panel.classList.remove("d-none");
   }
 
-  function resize() {
-    chart?.resize();
-  }
-
-  function fitToViewport() {
-    if (!fitViewport) return;
-    const shouldFit = window.innerWidth >= 768 && window.innerHeight >= 500;
-    if (!shouldFit) {
-      container.style.removeProperty("height");
-      resize();
-      return;
-    }
-    if (panel.offsetParent === null || container.classList.contains("d-none")) {
-      return;
-    }
-
-    const top = container.getBoundingClientRect().top;
-    container.style.height = `${Math.max(160, window.innerHeight - top - 32)}px`;
-    resize();
-  }
-
   function render(payload) {
     const from = new Date(payload.from).getTime();
     const to = new Date(payload.to).getTime();
@@ -977,7 +955,6 @@ export function createRunChart({
     loading.classList.add("d-none");
     empty.classList.toggle("d-none", pointCount > 0);
     container.classList.toggle("d-none", pointCount === 0);
-    fitToViewport();
 
     if (pointCount === 0) {
       emptyLabel.textContent = manualWindow === null
@@ -1383,7 +1360,5 @@ export function createRunChart({
     getTimeBounds,
     deleteMarker,
     replaceMarker,
-    resize,
-    fitToViewport,
   };
 }
