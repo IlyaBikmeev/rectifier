@@ -5,7 +5,6 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
-	"sort"
 	"strings"
 )
 
@@ -23,42 +22,12 @@ var indexTemplate = template.Must(
 var staticFiles embed.FS
 var staticHandler = http.FileServerFS(staticFiles)
 
-type sensorView struct {
-	ID              string
-	Name            string
-	MeasurementType string
-	Unit            string
-	Enabled         bool
-	Temperature     float64
-}
-
 type indexView struct {
-	Sensors []sensorView
 	Version string
 }
 
-func handleIndex(w http.ResponseWriter, r *http.Request, appState *AppState, version string) {
-	sensors := appState.SensorsSnapshot()
-
-	data := indexView{
-		Sensors: make([]sensorView, 0, len(sensors)),
-		Version: version,
-	}
-
-	for sensorID, discoveredSensor := range sensors {
-		data.Sensors = append(data.Sensors, sensorView{
-			ID:              sensorID,
-			Name:            discoveredSensor.name,
-			MeasurementType: discoveredSensor.measurementType,
-			Unit:            discoveredSensor.unit,
-			Enabled:         discoveredSensor.enabled,
-			Temperature:     discoveredSensor.temperature,
-		})
-	}
-
-	sort.Slice(data.Sensors, func(i, j int) bool {
-		return data.Sensors[i].Name < data.Sensors[j].Name
-	})
+func handleIndex(w http.ResponseWriter, r *http.Request, version string) {
+	data := indexView{Version: version}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 

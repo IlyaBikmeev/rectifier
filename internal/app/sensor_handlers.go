@@ -14,6 +14,9 @@ import (
 type sensorStatusResponse struct {
 	ID                 string    `json:"id"`
 	Name               string    `json:"name"`
+	MeasurementType    string    `json:"measurement_type"`
+	Unit               string    `json:"unit"`
+	Enabled            bool      `json:"enabled"`
 	Temperature        float64   `json:"temperature"`
 	LastSuccessfulRead time.Time `json:"last_successful_read"`
 	Status             string    `json:"status"`
@@ -45,6 +48,9 @@ func handleStatus(w http.ResponseWriter, r *http.Request, appState *AppState) {
 		response = append(response, sensorStatusResponse{
 			ID:                 sensorID,
 			Name:               discoveredSensor.name,
+			MeasurementType:    discoveredSensor.measurementType,
+			Unit:               discoveredSensor.unit,
+			Enabled:            discoveredSensor.enabled,
 			Temperature:        discoveredSensor.temperature,
 			LastSuccessfulRead: discoveredSensor.lastSuccessfulRead,
 			Status:             discoveredSensor.status,
