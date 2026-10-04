@@ -1,6 +1,6 @@
 const cameraPort = "8081";
 
-export function initCamera() {
+export function initCamera({ preferences, initiallyActive = true }) {
   const homeView = document.getElementById("home-view");
   const tabButtons = [...document.querySelectorAll("[data-home-tab]")];
   const panels = new Map(
@@ -25,9 +25,15 @@ export function initCamera() {
     : null;
 
   let cameraAvailable = false;
+  const initialPreferences = preferences.get();
   let selectedTab = "process";
-  const scrollPositions = new Map([...panels.keys()].map((tab) => [tab, 0]));
-  let routeActive = true;
+  const scrollPositions = new Map(
+    [...panels.keys()].map((tab) => [
+      tab,
+      initialPreferences.scrollPositions[tab],
+    ]),
+  );
+  let routeActive = initiallyActive;
   let retryNumber = 0;
   let viewerOpen = false;
   let nativeFullscreenActive = false;
@@ -56,6 +62,9 @@ export function initCamera() {
       if (element.tagName === "DIV") element.classList.add("d-flex");
     }
     document.dispatchEvent(new CustomEvent("rectifier:camera-available"));
+    if (preferences.get().selectedTab === "camera") {
+      selectTab("camera", { captureCurrentScroll: false });
+    }
   }
 
   function detectCamera() {
@@ -146,12 +155,23 @@ export function initCamera() {
     }
   }
 
-  function selectTab(tab) {
-    if (!panels.has(tab)) return;
-    if (tab === "camera" && !cameraAvailable) return;
+  function selectTab(
+    tab,
+    {
+      captureCurrentScroll = true,
+      persistSelection = true,
+      restore = false,
+    } = {},
+  ) {
+    if (!panels.has(tab)) return false;
+    if (tab === "camera" && !cameraAvailable) return false;
     const changingTab = selectedTab !== tab;
-    if (changingTab) scrollPositions.set(selectedTab, window.scrollY);
+    if (changingTab && captureCurrentScroll) {
+      scrollPositions.set(selectedTab, window.scrollY);
+      preferences.setScrollPosition(selectedTab, window.scrollY);
+    }
     selectedTab = tab;
+    if (persistSelection) preferences.setSelectedTab(tab);
 
     for (const [name, panel] of panels) {
       panel.classList.toggle("d-none", name !== tab);
@@ -170,7 +190,7 @@ export function initCamera() {
       connect();
       requestAnimationFrame(resize);
     }
-    if (changingTab) {
+    if (changingTab || restore) {
       requestAnimationFrame(() => {
         if (selectedTab !== tab) return;
         restoreScrollPosition(scrollPositions.get(tab));
@@ -180,6 +200,7 @@ export function initCamera() {
     document.dispatchEvent(
       new CustomEvent("rectifier:home-tab-changed", { detail: { tab } }),
     );
+    return true;
   }
 
   for (const button of tabButtons) {
@@ -235,12 +256,27 @@ export function initCamera() {
     window.addEventListener("beforeunload", disconnect);
   }
 
-  selectTab("process");
+  window.addEventListener("pagehide", () => {
+    scrollPositions.set(selectedTab, window.scrollY);
+    preferences.setScrollPosition(selectedTab, window.scrollY);
+  });
+
+  const initialTab =
+    initialPreferences.selectedTab === "camera"
+      ? "process"
+      : initialPreferences.selectedTab;
+  selectTab(initialTab, { persistSelection: false, restore: true });
   detectCamera();
 
   return {
     resize,
     selectTab,
+    getSelectedTab() {
+      return selectedTab;
+    },
+    isAvailable() {
+      return cameraAvailable;
+    },
     setActive(active) {
       routeActive = active;
       if (routeActive && selectedTab === "camera") {
