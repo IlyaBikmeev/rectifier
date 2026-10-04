@@ -26,9 +26,7 @@ export function initSensors({
   onSensorsChanged,
   onSyncChanged,
 }) {
-  const metadata = new Map();
   let latestSensors = [];
-  let synchronizedOnce = false;
 
   const sensorList = document.getElementById("sensor-list");
   const sensorCount = document.getElementById("sensor-count");
@@ -45,22 +43,6 @@ export function initSensors({
   const hardwareIDInput = document.getElementById("sensor-hardware-id");
   const nameInput = document.getElementById("sensor-name");
   const settingsError = document.getElementById("sensor-settings-error");
-
-  function rememberMetadata(sensor) {
-    metadata.set(sensor.id, {
-      name: sensor.name,
-      measurement_type: sensor.measurement_type,
-      unit: sensor.unit,
-      enabled: sensor.enabled,
-    });
-  }
-
-  function mergeMetadata(sensor) {
-    const sensorMetadata = metadata.get(sensor.id);
-    return withAvailability(
-      sensorMetadata ? { ...sensor, ...sensorMetadata } : sensor,
-    );
-  }
 
   function renderSensors(sensors) {
     const cards = document.createDocumentFragment();
@@ -157,19 +139,14 @@ export function initSensors({
         throw new Error("Unexpected status response format");
       }
 
-      for (const sensor of sensors) rememberMetadata(sensor);
-      latestSensors = sensors.map(mergeMetadata);
-      synchronizedOnce = true;
+      latestSensors = sensors.map(withAvailability);
       publishSensors();
       statusError.classList.add("d-none");
       onSyncChanged(true);
     } catch (error) {
       console.error("Failed to load status:", error);
       statusError.classList.remove("d-none");
-      if (!synchronizedOnce) {
-        sensorLoading.classList.add("d-none");
-        sensorCount.textContent = "Не удалось загрузить";
-      }
+      sensorLoading.classList.add("d-none");
       renderTemperatureSummary(latestSensors, false);
       onSyncChanged(false);
     }
@@ -202,11 +179,11 @@ export function initSensors({
 
     const card = button.closest(".sensor-card");
     const hardwareID = card.dataset.sensorId;
-    const sensorMetadata = metadata.get(hardwareID);
-    if (!sensorMetadata) return;
+    const sensor = latestSensors.find((sensor) => sensor.id === hardwareID);
+    if (!sensor) return;
 
     hardwareIDInput.value = hardwareID;
-    nameInput.value = sensorMetadata.name;
+    nameInput.value = sensor.name;
     clearSettingsError();
     settingsModal.show();
   });
@@ -221,14 +198,14 @@ export function initSensors({
     clearSettingsError();
 
     const hardwareID = hardwareIDInput.value;
-    const sensorMetadata = metadata.get(hardwareID);
+    const sensor = latestSensors.find((sensor) => sensor.id === hardwareID);
     const name = nameInput.value.trim();
 
     if (!name) {
       showSettingsError("Введите название датчика.");
       return;
     }
-    if (!sensorMetadata) {
+    if (!sensor) {
       showSettingsError("Не удалось найти данные датчика.");
       return;
     }
@@ -239,22 +216,22 @@ export function initSensors({
     try {
       const updatedSensor = await updateSensor(hardwareID, {
         name,
-        measurement_type: sensorMetadata.measurement_type,
-        unit: sensorMetadata.unit,
-        enabled: sensorMetadata.enabled,
+        measurement_type: sensor.measurement_type,
+        unit: sensor.unit,
+        enabled: sensor.enabled,
       });
-      metadata.set(hardwareID, {
-        name: updatedSensor.name,
-        measurement_type: updatedSensor.measurement_type,
-        unit: updatedSensor.unit,
-        enabled: updatedSensor.enabled,
-      });
-      latestSensors = latestSensors.map(mergeMetadata);
-      if (latestSensors.length > 0) {
-        publishSensors();
-      } else {
-        updateRenderedSensorName(hardwareID, updatedSensor.name);
-      }
+      latestSensors = latestSensors.map((current) =>
+        current.id === hardwareID
+          ? withAvailability({
+              ...current,
+              name: updatedSensor.name,
+              measurement_type: updatedSensor.measurement_type,
+              unit: updatedSensor.unit,
+              enabled: updatedSensor.enabled,
+            })
+          : current,
+      );
+      publishSensors();
       settingsModal.hide();
     } catch (error) {
       console.error("Failed to update sensor:", error);
