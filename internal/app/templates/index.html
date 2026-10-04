@@ -283,7 +283,7 @@
               >
                 <h2 class="h4 mb-0">Датчики</h2>
                 <span id="sensor-count" class="text-secondary">
-                  {{len .Sensors}} подключено
+                  Загружаем…
                 </span>
               </div>
 
@@ -292,42 +292,26 @@
                 данные.
               </div>
 
-              <div id="sensor-list" class="row g-2" aria-live="polite">
-              {{range .Sensors}}
               <div
-                class="col-12 col-md-6 col-lg-4 sensor-card"
-                data-sensor-id="{{.ID}}"
-                data-sensor-name="{{.Name}}"
-                data-measurement-type="{{.MeasurementType}}"
-                data-unit="{{.Unit}}"
-                data-enabled="{{.Enabled}}"
+                id="sensor-loading"
+                class="d-flex align-items-center gap-2 text-secondary py-4"
+                role="status"
               >
-                <div class="card h-100 shadow-sm">
-                  <div class="card-body d-flex flex-column p-2">
-                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-1">
-                      <div>
-                        <h5 class="card-title mb-1">{{.Name}}</h5>
-                        <div class="text-secondary small">{{.ID}}</div>
-                      </div>
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-secondary border-0"
-                        data-action="configure-sensor"
-                        aria-label="Настроить датчик"
-                        title="Настроить датчик"
-                      >
-                        <i class="bi bi-gear" aria-hidden="true"></i>
-                      </button>
-                    </div>
-                    <div class="mt-2">
-                      <span class="fs-2 fw-semibold">{{printf "%.1f" .Temperature}}</span>
-                      <span class="fs-4 text-secondary"> °C </span>
-                    </div>
-                  </div>
-                </div>
+                <span
+                  class="spinner-border spinner-border-sm"
+                  aria-hidden="true"
+                ></span>
+                Загружаем датчики…
               </div>
-              {{end}}
+
+              <div
+                id="sensor-empty"
+                class="d-none text-center text-secondary py-4"
+              >
+                Датчики не подключены
               </div>
+
+              <div id="sensor-list" class="row g-2 d-none" aria-live="polite"></div>              </div>
             </section>
 
             <div
