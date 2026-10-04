@@ -162,17 +162,6 @@ export function initSensors({
     nameInput.classList.remove("is-invalid");
   }
 
-  function updateRenderedSensorName(hardwareID, name) {
-    for (const card of sensorList.querySelectorAll(".sensor-card")) {
-      if (card.dataset.sensorId !== hardwareID) continue;
-
-      card.querySelector('[data-field="name"], .card-title').textContent =
-        name;
-      card.dataset.sensorName = name;
-      return;
-    }
-  }
-
   sensorList.addEventListener("click", (event) => {
     const button = event.target.closest('[data-action="configure-sensor"]');
     if (!button) return;
