@@ -44,9 +44,6 @@ export function initSensors({
   onSyncChanged,
 }) {
   let latestSensors = [];
-  let hasLoadedSensors = false;
-  let refreshPromise = null;
-  let localRevision = 0;
 
   const sensorList = document.getElementById("sensor-list");
   const sensorCount = document.getElementById("sensor-count");
@@ -55,8 +52,6 @@ export function initSensors({
   const sensorCardTemplate = document.getElementById("sensor-card-template");
   const temperatureSummary = document.getElementById("temperature-summary");
   const statusError = document.getElementById("status-error");
-  const statusErrorMessage = document.getElementById("status-error-message");
-  const statusRetryButton = document.getElementById("sensor-retry");
   const settingsModalElement = document.getElementById(
     "sensor-settings-modal",
   );
@@ -193,53 +188,24 @@ export function initSensors({
     onSensorsChanged(latestSensors);
   }
 
-  function showStatusError() {
-    sensorLoading.classList.add("d-none");
-    statusErrorMessage.textContent = hasLoadedSensors
-      ? "Не удалось обновить датчики. Показаны последние полученные данные."
-      : "Не удалось загрузить датчики. Проверьте подключение и повторите попытку.";
-    statusError.classList.remove("d-none");
-
-    if (!hasLoadedSensors) {
-      sensorCount.textContent = "Недоступно";
-      sensorEmpty.classList.add("d-none");
-      sensorList.classList.add("d-none");
-    }
-  }
-
-  function refresh() {
-    if (refreshPromise) return refreshPromise;
-
-    const requestedRevision = localRevision;
-    statusRetryButton.disabled = true;
-    statusRetryButton.textContent = "Загружаем…";
-    refreshPromise = (async () => {
-      try {
-        const sensors = await getSensorStatus();
-        if (!Array.isArray(sensors)) {
-          throw new Error("Unexpected status response format");
-        }
-
-        if (requestedRevision !== localRevision) return;
-
-        latestSensors = sensors.map(withAvailability);
-        hasLoadedSensors = true;
-        publishSensors();
-        statusError.classList.add("d-none");
-        onSyncChanged(true);
-      } catch (error) {
-        console.error("Failed to load status:", error);
-        showStatusError();
-        renderTemperatureSummary(latestSensors, false);
-        onSyncChanged(false);
-      } finally {
-        statusRetryButton.disabled = false;
-        statusRetryButton.textContent = "Повторить";
-        refreshPromise = null;
+  async function refresh() {
+    try {
+      const sensors = await getSensorStatus();
+      if (!Array.isArray(sensors)) {
+        throw new Error("Unexpected status response format");
       }
-    })();
 
-    return refreshPromise;
+      latestSensors = sensors.map(withAvailability);
+      publishSensors();
+      statusError.classList.add("d-none");
+      onSyncChanged(true);
+    } catch (error) {
+      console.error("Failed to load status:", error);
+      sensorLoading.classList.add("d-none");
+      statusError.classList.remove("d-none");
+      renderTemperatureSummary(latestSensors, false);
+      onSyncChanged(false);
+    }
   }
 
   function showSettingsError(message) {
@@ -297,31 +263,16 @@ export function initSensors({
     const submitButton = settingsForm.querySelector('[type="submit"]');
     submitButton.disabled = true;
     submitButton.textContent = "Сохраняем…";
-    const pendingRefresh = refreshPromise;
 
     try {
-      const updatedSensor = await updateSensor(hardwareID, {
+      await updateSensor(hardwareID, {
         name,
         measurement_type: sensor.measurement_type,
         unit: sensor.unit,
         enabled: sensor.enabled,
       });
-      localRevision += 1;
-      latestSensors = latestSensors.map((current) =>
-        current.id === hardwareID
-          ? withAvailability({
-              ...current,
-              name: updatedSensor.name,
-              measurement_type: updatedSensor.measurement_type,
-              unit: updatedSensor.unit,
-              enabled: updatedSensor.enabled,
-            })
-          : current,
-      );
-      publishSensors();
-      settingsModal.hide();
-      if (pendingRefresh) await pendingRefresh;
       await refresh();
+      settingsModal.hide();
     } catch (error) {
       console.error("Failed to update sensor:", error);
       showSettingsError(
