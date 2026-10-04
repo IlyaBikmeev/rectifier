@@ -1,0 +1,5 @@
+@media (max-width: 767.98px) {
+  .run-chart-container {
+    --bs-aspect-ratio: 75%;
+  }
+}
