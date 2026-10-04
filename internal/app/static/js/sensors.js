@@ -28,9 +28,12 @@ export function initSensors({
 }) {
   const metadata = new Map();
   let latestSensors = [];
+  let synchronizedOnce = false;
 
   const sensorList = document.getElementById("sensor-list");
   const sensorCount = document.getElementById("sensor-count");
+  const sensorLoading = document.getElementById("sensor-loading");
+  const sensorEmpty = document.getElementById("sensor-empty");
   const sensorCardTemplate = document.getElementById("sensor-card-template");
   const temperatureSummary = document.getElementById("temperature-summary");
   const statusError = document.getElementById("status-error");
@@ -43,12 +46,12 @@ export function initSensors({
   const nameInput = document.getElementById("sensor-name");
   const settingsError = document.getElementById("sensor-settings-error");
 
-  for (const card of document.querySelectorAll(".sensor-card")) {
-    metadata.set(card.dataset.sensorId, {
-      name: card.dataset.sensorName,
-      measurement_type: card.dataset.measurementType,
-      unit: card.dataset.unit,
-      enabled: card.dataset.enabled === "true",
+  function rememberMetadata(sensor) {
+    metadata.set(sensor.id, {
+      name: sensor.name,
+      measurement_type: sensor.measurement_type,
+      unit: sensor.unit,
+      enabled: sensor.enabled,
     });
   }
 
@@ -94,6 +97,9 @@ export function initSensors({
 
     sensorList.replaceChildren(cards);
     sensorCount.textContent = `${sensors.length} подключено`;
+    sensorLoading.classList.add("d-none");
+    sensorEmpty.classList.toggle("d-none", sensors.length !== 0);
+    sensorList.classList.toggle("d-none", sensors.length === 0);
   }
 
   function renderTemperatureSummary(sensors, synchronized = true) {
@@ -151,13 +157,19 @@ export function initSensors({
         throw new Error("Unexpected status response format");
       }
 
+      for (const sensor of sensors) rememberMetadata(sensor);
       latestSensors = sensors.map(mergeMetadata);
+      synchronizedOnce = true;
       publishSensors();
       statusError.classList.add("d-none");
       onSyncChanged(true);
     } catch (error) {
       console.error("Failed to load status:", error);
       statusError.classList.remove("d-none");
+      if (!synchronizedOnce) {
+        sensorLoading.classList.add("d-none");
+        sensorCount.textContent = "Не удалось загрузить";
+      }
       renderTemperatureSummary(latestSensors, false);
       onSyncChanged(false);
     }
