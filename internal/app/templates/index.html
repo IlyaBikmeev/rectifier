@@ -286,8 +286,15 @@
               </div>
 
               <div id="status-error" class="alert alert-warning d-none" role="alert">
-                Не удалось обновить состояние датчиков. Показаны последние полученные
-                данные.
+                <div id="status-error-message" class="mb-2"></div>
+                <button
+                  id="sensor-retry"
+                  type="button"
+                  class="btn btn-sm btn-outline-dark"
+                  data-action="reload-sensors"
+                >
+                  Повторить
+                </button>
               </div>
 
               <div
@@ -627,7 +634,7 @@
                     class="fs-2 fw-semibold"
                     data-field="temperature"
                   ></span>
-                  <span class="fs-4 text-secondary"> °C </span>
+                  <span class="fs-4 text-secondary" data-field="unit"> °C </span>
                 </div>
 
                 <div
@@ -952,7 +959,7 @@
               <div class="modal-body">
                 <div class="mb-3">
                   <label for="sensor-hardware-id" class="form-label">
-                    Hardware ID
+                    ID датчика
                   </label>
                   <input
                     type="text"

@@ -21,12 +21,32 @@ function withAvailability(sensor) {
   };
 }
 
+function sensorCountLabel(count) {
+  const remainder100 = count % 100;
+  const remainder10 = count % 10;
+  let noun = "датчиков";
+
+  if (remainder100 < 11 || remainder100 > 14) {
+    if (remainder10 === 1) noun = "датчик";
+    else if (remainder10 >= 2 && remainder10 <= 4) noun = "датчика";
+  }
+
+  return `${count} ${noun}`;
+}
+
+function sensorUnitLabel(unit) {
+  return unit === "celsius" ? "°C" : unit;
+}
+
 export function initSensors({
   pollingInterval,
   onSensorsChanged,
   onSyncChanged,
 }) {
   let latestSensors = [];
+  let hasLoadedSensors = false;
+  let refreshPromise = null;
+  let localRevision = 0;
 
   const sensorList = document.getElementById("sensor-list");
   const sensorCount = document.getElementById("sensor-count");
@@ -35,6 +55,8 @@ export function initSensors({
   const sensorCardTemplate = document.getElementById("sensor-card-template");
   const temperatureSummary = document.getElementById("temperature-summary");
   const statusError = document.getElementById("status-error");
+  const statusErrorMessage = document.getElementById("status-error-message");
+  const statusRetryButton = document.getElementById("sensor-retry");
   const settingsModalElement = document.getElementById(
     "sensor-settings-modal",
   );
@@ -44,41 +66,77 @@ export function initSensors({
   const nameInput = document.getElementById("sensor-name");
   const settingsError = document.getElementById("sensor-settings-error");
 
-  function renderSensors(sensors) {
-    const cards = document.createDocumentFragment();
+  function updateSensorCard(card, sensor) {
+    const successfulRead = hasSuccessfulRead(sensor);
+    const status = card.querySelector('[data-field="status"]');
 
-    for (const sensor of sensors) {
-      const card =
-        sensorCardTemplate.content.firstElementChild.cloneNode(true);
-      const successfulRead = hasSuccessfulRead(sensor);
-      const status = card.querySelector('[data-field="status"]');
+    card.dataset.sensorId = sensor.id;
+    card.querySelector('[data-field="name"]').textContent = sensor.name;
+    card.querySelector('[data-field="id"]').textContent = sensor.id;
+    card.querySelector('[data-field="temperature"]').textContent =
+      successfulRead && Number.isFinite(sensor.temperature)
+        ? sensor.temperature.toFixed(1)
+        : "—";
+    card.querySelector('[data-field="unit"]').textContent =
+      ` ${sensorUnitLabel(sensor.unit)} `;
 
-      card.dataset.sensorId = sensor.id;
-      card.querySelector('[data-field="name"]').textContent = sensor.name;
-      card.querySelector('[data-field="id"]').textContent = sensor.id;
-      card.querySelector('[data-field="temperature"]').textContent =
-        successfulRead && Number.isFinite(sensor.temperature)
-          ? sensor.temperature.toFixed(1)
-          : "—";
-
-      status.textContent = sensor.status === "OK" ? "В сети" : "Ошибка";
-      status.classList.add(
-        sensor.status === "OK" ? "text-bg-success" : "text-bg-danger",
-      );
-
-      card.querySelector(
-        '[data-field="last-successful-read"]',
-      ).textContent = successfulRead
-        ? `Последнее чтение: ${lastReadFormatter.format(
-            new Date(sensor.last_successful_read),
-          )}`
-        : "Нет успешных измерений";
-
-      cards.append(card);
+    status.classList.remove(
+      "text-bg-success",
+      "text-bg-danger",
+      "text-bg-secondary",
+    );
+    if (!sensor.enabled) {
+      status.textContent = "Отключён";
+      status.classList.add("text-bg-secondary");
+    } else if (sensor.status === "OK") {
+      status.textContent = "В сети";
+      status.classList.add("text-bg-success");
+    } else {
+      status.textContent = "Ошибка";
+      status.classList.add("text-bg-danger");
     }
 
-    sensorList.replaceChildren(cards);
-    sensorCount.textContent = `${sensors.length} подключено`;
+    card.querySelector(
+      '[data-field="last-successful-read"]',
+    ).textContent = successfulRead
+      ? `Последнее чтение: ${lastReadFormatter.format(
+          new Date(sensor.last_successful_read),
+        )}`
+      : "Нет успешных измерений";
+  }
+
+  function renderSensors(sensors) {
+    const renderedCards = Array.from(
+      sensorList.querySelectorAll(".sensor-card"),
+    );
+    const sameSensors =
+      renderedCards.length === sensors.length &&
+      renderedCards.every(
+        (card, index) => card.dataset.sensorId === sensors[index].id,
+      );
+
+    if (sameSensors) {
+      sensors.forEach((sensor, index) => {
+        updateSensorCard(renderedCards[index], sensor);
+      });
+    } else {
+      const existingCards = new Map(
+        renderedCards.map((card) => [card.dataset.sensorId, card]),
+      );
+      const cards = document.createDocumentFragment();
+
+      for (const sensor of sensors) {
+        const card =
+          existingCards.get(sensor.id) ??
+          sensorCardTemplate.content.firstElementChild.cloneNode(true);
+        updateSensorCard(card, sensor);
+        cards.append(card);
+      }
+
+      sensorList.replaceChildren(cards);
+    }
+
+    sensorCount.textContent = sensorCountLabel(sensors.length);
     sensorLoading.classList.add("d-none");
     sensorEmpty.classList.toggle("d-none", sensors.length !== 0);
     sensorList.classList.toggle("d-none", sensors.length === 0);
@@ -89,8 +147,10 @@ export function initSensors({
 
     if (sensors.length === 0) {
       const empty = document.createElement("span");
-      empty.className = "text-secondary";
-      empty.textContent = "Датчики не подключены";
+      empty.className = synchronized ? "text-secondary" : "text-warning";
+      empty.textContent = synchronized
+        ? "Датчики не подключены"
+        : "Обновление датчиков недоступно";
       temperatureSummary.replaceChildren(empty);
       return;
     }
@@ -117,7 +177,8 @@ export function initSensors({
         value.textContent = "недоступен";
         value.className = "text-danger";
       } else {
-        value.textContent = `${sensor.temperature.toFixed(1)} °C`;
+        value.textContent =
+          `${sensor.temperature.toFixed(1)} ${sensorUnitLabel(sensor.unit)}`;
       }
       item.append(value);
       items.append(item);
@@ -132,24 +193,53 @@ export function initSensors({
     onSensorsChanged(latestSensors);
   }
 
-  async function refresh() {
-    try {
-      const sensors = await getSensorStatus();
-      if (!Array.isArray(sensors)) {
-        throw new Error("Unexpected status response format");
-      }
+  function showStatusError() {
+    sensorLoading.classList.add("d-none");
+    statusErrorMessage.textContent = hasLoadedSensors
+      ? "Не удалось обновить датчики. Показаны последние полученные данные."
+      : "Не удалось загрузить датчики. Проверьте подключение и повторите попытку.";
+    statusError.classList.remove("d-none");
 
-      latestSensors = sensors.map(withAvailability);
-      publishSensors();
-      statusError.classList.add("d-none");
-      onSyncChanged(true);
-    } catch (error) {
-      console.error("Failed to load status:", error);
-      statusError.classList.remove("d-none");
-      sensorLoading.classList.add("d-none");
-      renderTemperatureSummary(latestSensors, false);
-      onSyncChanged(false);
+    if (!hasLoadedSensors) {
+      sensorCount.textContent = "Недоступно";
+      sensorEmpty.classList.add("d-none");
+      sensorList.classList.add("d-none");
     }
+  }
+
+  function refresh() {
+    if (refreshPromise) return refreshPromise;
+
+    const requestedRevision = localRevision;
+    statusRetryButton.disabled = true;
+    statusRetryButton.textContent = "Загружаем…";
+    refreshPromise = (async () => {
+      try {
+        const sensors = await getSensorStatus();
+        if (!Array.isArray(sensors)) {
+          throw new Error("Unexpected status response format");
+        }
+
+        if (requestedRevision !== localRevision) return;
+
+        latestSensors = sensors.map(withAvailability);
+        hasLoadedSensors = true;
+        publishSensors();
+        statusError.classList.add("d-none");
+        onSyncChanged(true);
+      } catch (error) {
+        console.error("Failed to load status:", error);
+        showStatusError();
+        renderTemperatureSummary(latestSensors, false);
+        onSyncChanged(false);
+      } finally {
+        statusRetryButton.disabled = false;
+        statusRetryButton.textContent = "Повторить";
+        refreshPromise = null;
+      }
+    })();
+
+    return refreshPromise;
   }
 
   function showSettingsError(message) {
@@ -177,6 +267,11 @@ export function initSensors({
     settingsModal.show();
   });
 
+  statusError.addEventListener("click", (event) => {
+    if (!event.target.closest('[data-action="reload-sensors"]')) return;
+    refresh();
+  });
+
   settingsModalElement.addEventListener("shown.bs.modal", () => {
     nameInput.focus();
     nameInput.select();
@@ -201,6 +296,8 @@ export function initSensors({
 
     const submitButton = settingsForm.querySelector('[type="submit"]');
     submitButton.disabled = true;
+    submitButton.textContent = "Сохраняем…";
+    const pendingRefresh = refreshPromise;
 
     try {
       const updatedSensor = await updateSensor(hardwareID, {
@@ -209,6 +306,7 @@ export function initSensors({
         unit: sensor.unit,
         enabled: sensor.enabled,
       });
+      localRevision += 1;
       latestSensors = latestSensors.map((current) =>
         current.id === hardwareID
           ? withAvailability({
@@ -222,6 +320,8 @@ export function initSensors({
       );
       publishSensors();
       settingsModal.hide();
+      if (pendingRefresh) await pendingRefresh;
+      await refresh();
     } catch (error) {
       console.error("Failed to update sensor:", error);
       showSettingsError(
@@ -229,11 +329,16 @@ export function initSensors({
       );
     } finally {
       submitButton.disabled = false;
+      submitButton.textContent = "Сохранить";
     }
   });
 
-  refresh();
-  setInterval(refresh, pollingInterval);
+  async function poll() {
+    await refresh();
+    window.setTimeout(poll, pollingInterval);
+  }
+
+  poll();
 
   return { refresh };
 }
