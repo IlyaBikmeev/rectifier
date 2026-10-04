@@ -1,12 +1,18 @@
-export function initAutoSwitch({ camera }) {
+export function initAutoSwitch({ camera, preferences, initiallyActive = true }) {
   const enabledInput = document.getElementById("auto-switch-enabled");
   const intervalSelect = document.getElementById("auto-switch-interval");
   if (!enabledInput || !intervalSelect) {
     return { setRouteActive() {} };
   }
 
-  let selectedTab = "process";
-  let routeActive = true;
+  const initialPreferences = preferences.get();
+  enabledInput.checked = initialPreferences.autoSwitchEnabled;
+  intervalSelect.value = String(
+    initialPreferences.autoSwitchIntervalSeconds,
+  );
+
+  let selectedTab = camera.getSelectedTab();
+  let routeActive = initiallyActive;
   let viewerOpen = false;
   let timer = null;
   const openModals = new Set();
@@ -28,7 +34,7 @@ export function initAutoSwitch({ camera }) {
 
   function schedule() {
     clearTimer();
-    if (!enabledInput.checked || isPaused()) return;
+    if (!enabledInput.checked || !camera.isAvailable() || isPaused()) return;
 
     const delay = Number(intervalSelect.value) * 1000;
     timer = window.setTimeout(() => {
@@ -42,8 +48,14 @@ export function initAutoSwitch({ camera }) {
     }, delay);
   }
 
-  enabledInput.addEventListener("change", schedule);
-  intervalSelect.addEventListener("change", schedule);
+  enabledInput.addEventListener("change", () => {
+    preferences.setAutoSwitchEnabled(enabledInput.checked);
+    schedule();
+  });
+  intervalSelect.addEventListener("change", () => {
+    preferences.setAutoSwitchIntervalSeconds(Number(intervalSelect.value));
+    schedule();
+  });
   document.addEventListener("rectifier:home-tab-changed", (event) => {
     selectedTab = event.detail.tab;
     schedule();
@@ -59,6 +71,9 @@ export function initAutoSwitch({ camera }) {
     schedule();
   });
   document.addEventListener("visibilitychange", schedule);
+  document.addEventListener("rectifier:camera-available", schedule);
+
+  schedule();
 
   return {
     setRouteActive(active) {

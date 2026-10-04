@@ -2,6 +2,7 @@ import { createRunChart } from "./chart.js";
 import { initAutoSwitch } from "./auto-switch.js";
 import { initCamera } from "./camera.js";
 import { initHistory } from "./history.js";
+import { createHomeViewPreferences } from "./home-view-preferences.js";
 import { initRouter } from "./router.js";
 import { initRunEvents } from "./run-events.js";
 import { initRuns } from "./runs.js";
@@ -24,8 +25,17 @@ const chart = createRunChart({
   onDeleteMarker: (event) => runEvents.openDelete(event, chart),
 });
 
-const camera = initCamera();
-const autoSwitch = initAutoSwitch({ camera });
+const homeViewPreferences = createHomeViewPreferences();
+const initiallyHomeRouteActive = window.location.hash !== "#/history";
+const camera = initCamera({
+  preferences: homeViewPreferences,
+  initiallyActive: initiallyHomeRouteActive,
+});
+const autoSwitch = initAutoSwitch({
+  camera,
+  preferences: homeViewPreferences,
+  initiallyActive: initiallyHomeRouteActive,
+});
 
 let resizeFrame = null;
 window.addEventListener("resize", () => {
