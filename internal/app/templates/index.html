@@ -1001,15 +1001,50 @@
       </section>
 
       <section id="history-view" class="d-none" aria-labelledby="history-title">
-        <div class="mb-4">
-          <div class="text-secondary small fw-semibold text-uppercase mb-1">
-            Журнал измерений
+        <div
+          class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-3"
+        >
+          <div>
+            <div class="text-secondary small fw-semibold text-uppercase mb-1">
+              Журнал измерений
+            </div>
+            <h1 class="h2 mb-1" id="history-title">История перегонов</h1>
+            <p class="text-secondary mb-0">
+              Партии и сохранённые температурные графики
+            </p>
           </div>
-          <h1 class="h2 mb-1" id="history-title">История перегонов</h1>
-          <p class="text-secondary mb-0">
-            Партии и сохранённые температурные графики
-          </p>
+          <div class="d-grid d-md-block align-self-md-end">
+            <button
+              id="download-backup"
+              type="button"
+              class="btn btn-outline-primary py-2"
+            >
+              <span
+                class="spinner-border spinner-border-sm d-none me-1"
+                aria-hidden="true"
+                data-backup-spinner
+              ></span>
+              <i
+                class="bi bi-database-down me-1"
+                aria-hidden="true"
+                data-backup-icon
+              ></i>
+              <i
+                class="bi bi-check-lg d-none me-1"
+                aria-hidden="true"
+                data-backup-success-icon
+              ></i>
+              <span data-backup-label>Скачать резервную копию</span>
+            </button>
+          </div>
         </div>
+
+        <div
+          id="backup-message"
+          class="alert d-none py-2 mb-3"
+          role="status"
+          aria-live="polite"
+        ></div>
 
         <div
           id="history-loading"

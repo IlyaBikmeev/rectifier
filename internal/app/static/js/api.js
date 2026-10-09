@@ -16,6 +16,24 @@ async function requestJSON(url, options = {}, expectedStatus = null) {
   return response.json();
 }
 
+export async function getBackup() {
+  const response = await fetch("/api/backup", { cache: "no-store" });
+  if (!response.ok) {
+    const message = (await response.text()).trim();
+    const error = new Error(message || `HTTP ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const filename = disposition.match(/filename="([^"]+)"/)?.[1];
+
+  return {
+    blob: await response.blob(),
+    filename: filename ?? "rectifier-backup.db",
+  };
+}
+
 export function getProcess() {
   return requestJSON("/api/process", { cache: "no-store" });
 }

@@ -1,5 +1,6 @@
 import { createRunChart } from "./chart.js";
 import { initAutoSwitch } from "./auto-switch.js";
+import { initBackup } from "./backup.js";
 import { initCamera } from "./camera.js";
 import { initHistory } from "./history.js";
 import { createHomeViewPreferences } from "./home-view-preferences.js";
@@ -9,6 +10,7 @@ import { initRuns } from "./runs.js";
 import { initSensors } from "./sensors.js";
 
 const pollingInterval = 5000;
+initBackup();
 const runEvents = initRunEvents();
 
 const chart = createRunChart({
