@@ -67,6 +67,14 @@ export function stopRun(runID) {
   );
 }
 
+export function deleteRun(runID) {
+  return requestJSON(
+    `/api/runs/${encodeURIComponent(runID)}`,
+    { method: "DELETE" },
+    204,
+  );
+}
+
 export function getRunMeasurements(runID, { from, to } = {}) {
   const parameters = new URLSearchParams();
   if (from !== undefined) parameters.set("from", from);

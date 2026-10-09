@@ -1142,15 +1142,40 @@
                   </span>
                 </div>
               </div>
-              <button
-                type="button"
-                class="btn btn-sm btn-outline-primary flex-shrink-0"
-                data-action="toggle-history-chart"
-                aria-expanded="false"
-              >
-                <i class="bi bi-graph-up me-1" aria-hidden="true"></i>
-                <span data-label>Показать график</span>
-              </button>
+              <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-primary"
+                  data-action="toggle-history-chart"
+                  aria-expanded="false"
+                >
+                  <i class="bi bi-graph-up me-1" aria-hidden="true"></i>
+                  <span data-label>Показать график</span>
+                </button>
+                <div class="dropdown" data-field="run-actions">
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                    aria-label="Действия с перегоном"
+                  >
+                    <i class="bi bi-three-dots" aria-hidden="true"></i>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                      <button
+                        type="button"
+                        class="dropdown-item text-danger"
+                        data-action="delete-history-run"
+                      >
+                        <i class="bi bi-trash me-2" aria-hidden="true"></i
+                        >Удалить перегон
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
         </template>
@@ -1577,6 +1602,78 @@
               class="btn btn-danger"
             >
               Удалить
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div
+      class="modal fade"
+      id="delete-history-run-modal"
+      tabindex="-1"
+      aria-labelledby="delete-history-run-title"
+      aria-describedby="delete-history-run-warning"
+    >
+      <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+        <form id="delete-history-run-form" class="modal-content">
+          <div class="modal-header">
+            <h2 class="modal-title fs-5" id="delete-history-run-title">
+              Удалить перегон?
+            </h2>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Закрыть"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div
+              id="delete-history-run-error"
+              class="alert alert-danger d-none"
+              role="alert"
+            ></div>
+            <dl class="row mb-3">
+              <dt class="col-4 text-secondary fw-normal">Партия</dt>
+              <dd
+                class="col-8 mb-2 text-break"
+                id="delete-history-run-batch"
+              ></dd>
+              <dt class="col-4 text-secondary fw-normal">Тип</dt>
+              <dd class="col-8 mb-2" id="delete-history-run-type"></dd>
+              <dt class="col-4 text-secondary fw-normal">Начало</dt>
+              <dd class="col-8 mb-2">
+                <time id="delete-history-run-started"></time>
+              </dd>
+              <dt class="col-4 text-secondary fw-normal">Длительность</dt>
+              <dd
+                class="col-8 mb-0 font-monospace"
+                id="delete-history-run-duration"
+              ></dd>
+            </dl>
+            <div
+              class="alert alert-warning mb-0"
+              id="delete-history-run-warning"
+            >
+              Перегон будет безвозвратно удалён вместе с температурными
+              измерениями и метками.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-outline-secondary"
+              data-bs-dismiss="modal"
+            >
+              Отмена
+            </button>
+            <button
+              id="submit-delete-history-run"
+              type="submit"
+              class="btn btn-danger"
+            >
+              Удалить перегон
             </button>
           </div>
         </form>

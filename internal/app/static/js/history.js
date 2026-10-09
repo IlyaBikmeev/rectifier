@@ -1,4 +1,4 @@
-import { getBatches } from "./api.js";
+import { deleteRun, getBatches } from "./api.js";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
   day: "2-digit",
@@ -17,6 +17,10 @@ function formatDuration(totalMilliseconds) {
   );
   const seconds = String(totalSeconds % 60).padStart(2, "0");
   return `${hours}:${minutes}:${seconds}`;
+}
+
+function runTypeLabel(runType) {
+  return runType === "stripping" ? "Первый перегон" : "Ректификация";
 }
 
 function parseDate(value, field) {
@@ -106,7 +110,18 @@ export function initHistory({ chart, runEvents, pollingInterval, pageSize }) {
     chartPanel: document.getElementById("history-chart-panel"),
     addRunEvent: document.getElementById("add-history-run-event"),
     addRunEventReason: document.getElementById("history-add-event-reason"),
+    deleteModal: document.getElementById("delete-history-run-modal"),
+    deleteForm: document.getElementById("delete-history-run-form"),
+    deleteBatch: document.getElementById("delete-history-run-batch"),
+    deleteType: document.getElementById("delete-history-run-type"),
+    deleteStarted: document.getElementById("delete-history-run-started"),
+    deleteDuration: document.getElementById("delete-history-run-duration"),
+    deleteError: document.getElementById("delete-history-run-error"),
+    deleteSubmit: document.getElementById("submit-delete-history-run"),
   };
+  const deleteModal = window.bootstrap.Modal.getOrCreateInstance(
+    elements.deleteModal,
+  );
 
   const state = {
     batches: [],
@@ -125,6 +140,8 @@ export function initHistory({ chart, runEvents, pollingInterval, pageSize }) {
   let durationTimer = null;
   let pollingTimer = null;
   let chartReady = false;
+  let deletionTarget = null;
+  let deleting = false;
 
   function updateAddEventAvailability() {
     const selectedRun = findRun(state.selectedRunID);
@@ -152,6 +169,14 @@ export function initHistory({ chart, runEvents, pollingInterval, pageSize }) {
     for (const batch of state.batches) {
       const run = batch.runs.find((candidate) => candidate.id === runID);
       if (run) return run;
+    }
+    return null;
+  }
+
+  function findRunContext(runID) {
+    for (const batch of state.batches) {
+      const run = batch.runs.find((candidate) => candidate.id === runID);
+      if (run) return { batch, run };
     }
     return null;
   }
@@ -203,11 +228,14 @@ export function initHistory({ chart, runEvents, pollingInterval, pageSize }) {
     const toggle = fragment.querySelector(
       '[data-action="toggle-history-chart"]',
     );
+    const actions = fragment.querySelector('[data-field="run-actions"]');
+    const remove = fragment.querySelector(
+      '[data-action="delete-history-run"]',
+    );
 
     row.dataset.runId = String(run.id);
     row.dataset.status = run.status;
-    type.textContent =
-      run.type === "stripping" ? "Первый перегон" : "Ректификация";
+    type.textContent = runTypeLabel(run.type);
     status.textContent = run.status === "RUNNING" ? "В процессе" : "Завершён";
     status.classList.add(
       run.status === "RUNNING" ? "text-bg-success" : "text-bg-secondary",
@@ -223,8 +251,57 @@ export function initHistory({ chart, runEvents, pollingInterval, pageSize }) {
     duration.dataset.runDuration = String(run.id);
     duration.textContent = formatDuration(runDuration(run));
     toggle.dataset.runId = String(run.id);
+    actions.classList.toggle("d-none", run.status !== "STOPPED");
+    remove.dataset.runId = String(run.id);
 
     return fragment;
+  }
+
+  function updateDeleteModal() {
+    elements.deleteSubmit.disabled = deleting;
+    elements.deleteSubmit.innerHTML = deleting
+      ? '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Удаляем…'
+      : "Удалить перегон";
+    for (const button of elements.deleteModal.querySelectorAll(
+      '[data-bs-dismiss="modal"]',
+    )) {
+      button.disabled = deleting;
+    }
+  }
+
+  function openDeleteModal(runID) {
+    if (deleting) return;
+    const target = findRunContext(runID);
+    if (!target || target.run.status !== "STOPPED") return;
+
+    deletionTarget = target;
+    elements.deleteBatch.textContent = target.batch.name;
+    elements.deleteType.textContent = runTypeLabel(target.run.type);
+    elements.deleteStarted.dateTime = new Date(
+      target.run.startedAt,
+    ).toISOString();
+    elements.deleteStarted.textContent = dateTimeFormatter.format(
+      new Date(target.run.startedAt),
+    );
+    elements.deleteDuration.textContent = formatDuration(
+      runDuration(target.run),
+    );
+    elements.deleteError.textContent = "";
+    elements.deleteError.classList.add("d-none");
+    updateDeleteModal();
+    deleteModal.show();
+  }
+
+  function removeRun(runID) {
+    if (state.selectedRunID === runID) {
+      chart.hide();
+      state.selectedRunID = null;
+      chartReady = false;
+    }
+    for (const batch of state.batches) {
+      batch.runs = batch.runs.filter((run) => run.id !== runID);
+    }
+    render();
   }
 
   function renderBatch(batch) {
@@ -425,7 +502,9 @@ export function initHistory({ chart, runEvents, pollingInterval, pageSize }) {
       return;
     }
 
-    const previous = elements.list.querySelector('[aria-expanded="true"]');
+    const previous = elements.list.querySelector(
+      '[data-action="toggle-history-chart"][aria-expanded="true"]',
+    );
     if (previous) {
       previous.setAttribute("aria-expanded", "false");
       previous.querySelector("[data-label]").textContent = "Показать график";
@@ -462,7 +541,52 @@ export function initHistory({ chart, runEvents, pollingInterval, pageSize }) {
       case "toggle-history-chart":
         toggleChart(action);
         break;
+      case "delete-history-run":
+        openDeleteModal(Number(action.dataset.runId));
+        break;
     }
+  });
+
+  elements.deleteForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (deleting || !deletionTarget) return;
+
+    const runID = deletionTarget.run.id;
+    deleting = true;
+    elements.deleteError.classList.add("d-none");
+    updateDeleteModal();
+
+    try {
+      await deleteRun(runID);
+      deletionTarget = null;
+      deleting = false;
+      removeRun(runID);
+      deleteModal.hide();
+    } catch (error) {
+      console.error("Failed to delete run:", error);
+      deleting = false;
+
+      if (error.status === 404) {
+        deletionTarget = null;
+        removeRun(runID);
+        deleteModal.hide();
+        return;
+      }
+
+      elements.deleteError.textContent =
+        error.status === 409
+          ? "Этот перегон нельзя удалить. Возможно, он ещё активен."
+          : "Не удалось удалить перегон. Проверьте связь и попробуйте ещё раз.";
+      elements.deleteError.classList.remove("d-none");
+      updateDeleteModal();
+    }
+  });
+
+  elements.deleteModal.addEventListener("hide.bs.modal", (event) => {
+    if (deleting) event.preventDefault();
+  });
+  elements.deleteModal.addEventListener("hidden.bs.modal", () => {
+    if (!deleting) deletionTarget = null;
   });
 
   elements.addRunEvent.addEventListener("click", () => {
