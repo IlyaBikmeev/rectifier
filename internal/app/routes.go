@@ -41,6 +41,9 @@ func newRouter(
 	mux.HandleFunc("POST /api/runs", func(w http.ResponseWriter, r *http.Request) {
 		handleCreateRun(w, r, appState, runRepository)
 	})
+	mux.HandleFunc("DELETE /api/runs/{id}", func(w http.ResponseWriter, r *http.Request) {
+		handleDeleteRun(w, r, runRepository)
+	})
 	mux.HandleFunc("GET /api/runs/{id}/measurements", func(w http.ResponseWriter, r *http.Request) {
 		handleRunMeasurements(w, r, measurementRepository)
 	})

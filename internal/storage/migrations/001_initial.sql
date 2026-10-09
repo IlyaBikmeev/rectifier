@@ -17,6 +17,10 @@ CREATE TABLE runs(
     status TEXT NOT NULL
 );
 
+CREATE UNIQUE INDEX idx_runs_single_active
+    ON runs ((1))
+    WHERE stopped_at IS NULL;
+
 -- Известные физические датчики
 CREATE TABLE sensors(
     id INTEGER PRIMARY KEY,
@@ -31,7 +35,7 @@ CREATE TABLE sensors(
 
 -- снимок состава и названий датчиков для конкретного перегона
 CREATE TABLE run_sensors(
-    run_id INTEGER NOT NULL REFERENCES runs(id),
+    run_id INTEGER NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
     sensor_id INTEGER NOT NULL REFERENCES sensors(id),
     sensor_name TEXT NOT NULL,
     PRIMARY KEY (run_id, sensor_id)
@@ -40,7 +44,7 @@ CREATE TABLE run_sensors(
 -- Измерения с датчиков во время перегона
 CREATE TABLE measurements(
     id INTEGER PRIMARY KEY,
-    run_id INTEGER NOT NULL REFERENCES runs(id),
+    run_id INTEGER NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
     sensor_id INTEGER NOT NULL REFERENCES sensors(id),
     measured_at TIMESTAMP NOT NULL,
     value REAL NOT NULL
@@ -48,3 +52,14 @@ CREATE TABLE measurements(
 
 CREATE INDEX idx_measurements_run_sensor_time
     ON measurements(run_id, sensor_id, measured_at);
+
+CREATE TABLE run_events(
+    id INTEGER PRIMARY KEY,
+    run_id INTEGER NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    occurred_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_run_events_run_time
+    ON run_events(run_id, occurred_at);

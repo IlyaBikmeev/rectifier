@@ -216,6 +216,30 @@ func handleStopRun(
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func handleDeleteRun(w http.ResponseWriter, r *http.Request, runRepository storage.RunRepository) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid run id", http.StatusBadRequest)
+		return
+	}
+
+	err = runRepository.Delete(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, storage.ErrRunNotFound) {
+			http.Error(w, "run not found", http.StatusNotFound)
+		} else if errors.Is(err, storage.ErrRunCannotBeDeleted) {
+			http.Error(w, "run cannot be deleted", http.StatusConflict)
+		} else {
+			slog.Error("delete run failed", "run_id", id, "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	slog.Info("run deleted", "run_id", id)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func handleRunMeasurements(
 	w http.ResponseWriter,
 	r *http.Request,

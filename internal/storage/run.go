@@ -11,6 +11,7 @@ import (
 type RunRepository interface {
 	Active(ctx context.Context) (*Run, error)
 	Create(ctx context.Context, run Run) (*Run, error)
+	Delete(ctx context.Context, id int) error
 	Stop(ctx context.Context, id int) error
 }
 
@@ -21,6 +22,7 @@ type SQLiteRunRepository struct {
 var _ RunRepository = (*SQLiteRunRepository)(nil)
 
 var ErrRunNotActive = errors.New("run is not active")
+var ErrRunCannotBeDeleted = errors.New("run cannot be deleted")
 
 func NewSQLiteRunRepository(db *sql.DB) *SQLiteRunRepository {
 	return &SQLiteRunRepository{db: db}
@@ -222,6 +224,70 @@ func (rr *SQLiteRunRepository) Create(ctx context.Context, run Run) (*Run, error
 
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit create run transaction: %w", err)
+	}
+
+	return &run, nil
+}
+
+func (rr *SQLiteRunRepository) Delete(ctx context.Context, id int) error {
+	query := `
+		DELETE FROM runs
+		WHERE id = ?
+			AND status = 'STOPPED'
+			AND stopped_at IS NOT NULL
+		`
+
+	tx, err := rr.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin delete run transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	existingRun, err := rr.findByID(ctx, tx, id)
+	if err != nil {
+		return fmt.Errorf("find run by id: %w", err)
+	}
+
+	if existingRun.Status != "STOPPED" || existingRun.StoppedAt == nil {
+		return ErrRunCannotBeDeleted
+	}
+
+	_, err = tx.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("delete run failed: %w", err)
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit delete run transaction: %w", err)
+	}
+	return nil
+}
+
+func (rr *SQLiteRunRepository) findByID(ctx context.Context, tx *sql.Tx, id int) (*Run, error) {
+	query := `
+		SELECT r.id, r.batch_id, r.type, r.started_at, r.stopped_at, r.status, b.name
+		FROM runs r
+		INNER JOIN batches b ON b.id = r.batch_id
+		WHERE r.id = ?
+	`
+
+	var run Run
+
+	foundRow := tx.QueryRowContext(ctx, query, id)
+
+	if err := foundRow.Scan(
+		&run.ID,
+		&run.BatchID,
+		&run.Type,
+		&run.StartedAt,
+		&run.StoppedAt,
+		&run.Status,
+		&run.BatchName,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrRunNotFound
+		}
+		return nil, fmt.Errorf("scan run by id: %w", err)
 	}
 
 	return &run, nil
