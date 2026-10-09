@@ -38,6 +38,9 @@ func newRouter(
 	mux.HandleFunc("POST /api/batches", func(w http.ResponseWriter, r *http.Request) {
 		handleCreateBatch(w, r, batchRepository)
 	})
+	mux.HandleFunc("DELETE /api/batches/{id}", func(w http.ResponseWriter, r *http.Request) {
+		handleDeleteBatch(w, r, batchRepository)
+	})
 	mux.HandleFunc("POST /api/runs", func(w http.ResponseWriter, r *http.Request) {
 		handleCreateRun(w, r, appState, runRepository)
 	})

@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"rectifier/internal/storage"
@@ -162,4 +163,28 @@ func handleCreateBatch(w http.ResponseWriter, r *http.Request, batchRepository s
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		slog.Error("encode create batch response failed", "batch_id", batch.ID, "error", err)
 	}
+}
+
+func handleDeleteBatch(w http.ResponseWriter, r *http.Request, batchRepository storage.BatchRepository) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid batch id", http.StatusBadRequest)
+		return
+	}
+
+	err = batchRepository.Delete(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, storage.ErrBatchHasRuns) {
+			http.Error(w, "batch has runs", http.StatusConflict)
+		} else if errors.Is(err, storage.ErrBatchNotFound) {
+			http.Error(w, "batch not found", http.StatusNotFound)
+		} else {
+			slog.Error("delete batch failed", "batch_id", id, "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	slog.Info("batch deleted", "batch_id", id)
+	w.WriteHeader(http.StatusNoContent)
 }

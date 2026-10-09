@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -11,6 +12,7 @@ type BatchRepository interface {
 	All(ctx context.Context) ([]Batch, error)
 	PageWithRuns(ctx context.Context, limit int, offset int) ([]Batch, error)
 	Create(ctx context.Context, batch Batch) (Batch, error)
+	Delete(ctx context.Context, id int) error
 }
 
 type Batch struct {
@@ -27,6 +29,9 @@ type SQLiteBatchRepository struct {
 }
 
 var _ BatchRepository = (*SQLiteBatchRepository)(nil)
+
+var ErrBatchNotFound = errors.New("batch not found")
+var ErrBatchHasRuns = errors.New("batch has runs")
 
 func NewSQLiteBatchRepository(db *sql.DB) *SQLiteBatchRepository {
 	return &SQLiteBatchRepository{db: db}
@@ -177,4 +182,66 @@ func (br *SQLiteBatchRepository) Create(ctx context.Context, batch Batch) (Batch
 	}
 
 	return savedBatch, nil
+}
+
+func (br *SQLiteBatchRepository) Delete(ctx context.Context, id int) error {
+	query := `
+		DELETE FROM batches
+		WHERE id = ?
+	`
+
+	tx, err := br.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin delete batch transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	hasRuns, err := hasRuns(ctx, tx, id)
+	if err != nil {
+		return fmt.Errorf("batch has runs query: %w", err)
+	}
+
+	if hasRuns {
+		return ErrBatchHasRuns
+	}
+
+	res, err := tx.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("batch delete query: %w", err)
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("batch delete rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return ErrBatchNotFound
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("batch delete commit transaction: %w", err)
+	}
+	return nil
+}
+
+func hasRuns(ctx context.Context, tx *sql.Tx, id int) (bool, error) {
+	query := `
+		SELECT 1
+		FROM batches b
+		INNER JOIN runs r ON r.batch_id = b.id
+		WHERE b.id = ?
+	`
+
+	res := tx.QueryRowContext(ctx, query, id)
+
+	var has bool
+	if err := res.Scan(&has); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, fmt.Errorf("has runs scan: %w", err)
+	}
+
+	return has, nil
 }
