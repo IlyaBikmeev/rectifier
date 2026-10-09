@@ -51,6 +51,14 @@ export function createBatch(batch) {
   });
 }
 
+export function deleteBatch(batchID) {
+  return requestJSON(
+    `/api/batches/${encodeURIComponent(batchID)}`,
+    { method: "DELETE" },
+    204,
+  );
+}
+
 export function createRun(run) {
   return requestJSON("/api/runs", {
     method: "POST",

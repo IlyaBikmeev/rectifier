@@ -1099,11 +1099,35 @@
             <div
               class="card-header bg-body d-flex flex-column flex-sm-row justify-content-between align-items-sm-baseline gap-1 gap-sm-3 py-3"
             >
-              <h2 class="h5 mb-0" data-field="batch-name"></h2>
-              <time
-                class="small text-secondary flex-shrink-0"
-                data-field="batch-updated"
-              ></time>
+              <h2 class="h5 mb-0 text-break" data-field="batch-name"></h2>
+              <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                <time
+                  class="small text-secondary"
+                  data-field="batch-updated"
+                ></time>
+                <div class="dropdown" data-field="batch-actions">
+                  <button
+                    type="button"
+                    class="btn btn-outline-secondary px-3 py-2"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                  >
+                    <i class="bi bi-three-dots" aria-hidden="true"></i>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                      <button
+                        type="button"
+                        class="dropdown-item text-danger"
+                        data-action="delete-history-batch"
+                      >
+                        <i class="bi bi-trash me-2" aria-hidden="true"></i
+                        >Удалить партию
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </div>
             <div class="list-group list-group-flush" data-field="runs"></div>
           </article>
@@ -1674,6 +1698,59 @@
               class="btn btn-danger"
             >
               Удалить перегон
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div
+      class="modal fade"
+      id="delete-history-batch-modal"
+      tabindex="-1"
+      aria-labelledby="delete-history-batch-title"
+      aria-describedby="delete-history-batch-warning"
+    >
+      <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+        <form id="delete-history-batch-form" class="modal-content">
+          <div class="modal-header">
+            <h2 class="modal-title fs-5" id="delete-history-batch-title"></h2>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Закрыть"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div
+              id="delete-history-batch-error"
+              class="alert alert-danger d-none"
+              role="alert"
+            ></div>
+            <p
+              id="delete-history-batch-comment"
+              class="small text-secondary text-break d-none"
+            ></p>
+            <p id="delete-history-batch-warning" class="mb-0">
+              Партия пустая. Удаление нельзя отменить.
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button
+              id="cancel-delete-history-batch"
+              type="button"
+              class="btn btn-outline-secondary"
+              data-bs-dismiss="modal"
+            >
+              Отмена
+            </button>
+            <button
+              id="submit-delete-history-batch"
+              type="submit"
+              class="btn btn-danger"
+            >
+              Удалить партию
             </button>
           </div>
         </form>

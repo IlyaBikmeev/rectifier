@@ -1,4 +1,4 @@
-import { deleteRun, getBatches } from "./api.js";
+import { deleteBatch, deleteRun, getBatches } from "./api.js";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
   day: "2-digit",
@@ -118,9 +118,23 @@ export function initHistory({ chart, runEvents, pollingInterval, pageSize }) {
     deleteDuration: document.getElementById("delete-history-run-duration"),
     deleteError: document.getElementById("delete-history-run-error"),
     deleteSubmit: document.getElementById("submit-delete-history-run"),
+    batchDeleteModal: document.getElementById("delete-history-batch-modal"),
+    batchDeleteForm: document.getElementById("delete-history-batch-form"),
+    batchDeleteTitle: document.getElementById("delete-history-batch-title"),
+    batchDeleteComment: document.getElementById(
+      "delete-history-batch-comment",
+    ),
+    batchDeleteError: document.getElementById("delete-history-batch-error"),
+    batchDeleteCancel: document.getElementById("cancel-delete-history-batch"),
+    batchDeleteSubmit: document.getElementById(
+      "submit-delete-history-batch",
+    ),
   };
   const deleteModal = window.bootstrap.Modal.getOrCreateInstance(
     elements.deleteModal,
+  );
+  const batchDeleteModal = window.bootstrap.Modal.getOrCreateInstance(
+    elements.batchDeleteModal,
   );
 
   const state = {
@@ -142,6 +156,9 @@ export function initHistory({ chart, runEvents, pollingInterval, pageSize }) {
   let chartReady = false;
   let deletionTarget = null;
   let deleting = false;
+  let batchDeletionTarget = null;
+  let batchDeleting = false;
+  let batchDeleteConflict = false;
 
   function updateAddEventAvailability() {
     const selectedRun = findRun(state.selectedRunID);
@@ -309,11 +326,24 @@ export function initHistory({ chart, runEvents, pollingInterval, pageSize }) {
     const name = fragment.querySelector('[data-field="batch-name"]');
     const updated = fragment.querySelector('[data-field="batch-updated"]');
     const runs = fragment.querySelector('[data-field="runs"]');
+    const actions = fragment.querySelector('[data-field="batch-actions"]');
+    const actionsToggle = fragment.querySelector(
+      '[data-bs-toggle="dropdown"]',
+    );
+    const remove = fragment.querySelector(
+      '[data-action="delete-history-batch"]',
+    );
 
     name.textContent = batch.name;
     const updatedDate = new Date(batch.updatedAt);
     updated.dateTime = updatedDate.toISOString();
     updated.textContent = `Обновлено ${dateTimeFormatter.format(updatedDate)}`;
+    actions.classList.toggle("invisible", batch.runs.length !== 0);
+    actionsToggle.setAttribute(
+      "aria-label",
+      `Действия с партией «${batch.name}»`,
+    );
+    remove.dataset.batchId = String(batch.id);
 
     if (batch.runs.length === 0) {
       const empty = document.createElement("div");
@@ -325,6 +355,47 @@ export function initHistory({ chart, runEvents, pollingInterval, pageSize }) {
     }
 
     return fragment;
+  }
+
+  function updateBatchDeleteModal() {
+    elements.batchDeleteSubmit.disabled = batchDeleting;
+    elements.batchDeleteSubmit.classList.toggle("d-none", batchDeleteConflict);
+    elements.batchDeleteSubmit.innerHTML = batchDeleting
+      ? '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Удаляем…'
+      : "Удалить партию";
+    elements.batchDeleteCancel.disabled = batchDeleting;
+    elements.batchDeleteCancel.textContent = batchDeleteConflict
+      ? "Закрыть"
+      : "Отмена";
+    for (const button of elements.batchDeleteModal.querySelectorAll(
+      '[data-bs-dismiss="modal"]',
+    )) {
+      button.disabled = batchDeleting;
+    }
+  }
+
+  function openBatchDeleteModal(batchID) {
+    if (batchDeleting) return;
+    const batch = state.batches.find((candidate) => candidate.id === batchID);
+    if (!batch || batch.runs.length !== 0) return;
+
+    batchDeletionTarget = batch;
+    batchDeleteConflict = false;
+    elements.batchDeleteTitle.textContent = `Удалить партию «${batch.name}»?`;
+    const comment = typeof batch.comment === "string" ? batch.comment.trim() : "";
+    elements.batchDeleteComment.textContent = comment;
+    elements.batchDeleteComment.classList.toggle("d-none", comment === "");
+    elements.batchDeleteError.textContent = "";
+    elements.batchDeleteError.classList.add("d-none");
+    updateBatchDeleteModal();
+    batchDeleteModal.show();
+  }
+
+  function removeBatch(batchID) {
+    state.batches = state.batches.filter((batch) => batch.id !== batchID);
+    state.nextOffset = Math.max(0, state.nextOffset - 1);
+    render();
+    if (state.batches.length === 0 && state.hasMore) void loadMore();
   }
 
   function restoreSelectedChart() {
@@ -544,6 +615,9 @@ export function initHistory({ chart, runEvents, pollingInterval, pageSize }) {
       case "delete-history-run":
         openDeleteModal(Number(action.dataset.runId));
         break;
+      case "delete-history-batch":
+        openBatchDeleteModal(Number(action.dataset.batchId));
+        break;
     }
   });
 
@@ -587,6 +661,55 @@ export function initHistory({ chart, runEvents, pollingInterval, pageSize }) {
   });
   elements.deleteModal.addEventListener("hidden.bs.modal", () => {
     if (!deleting) deletionTarget = null;
+  });
+
+  elements.batchDeleteForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (batchDeleting || batchDeleteConflict || !batchDeletionTarget) return;
+
+    const batchID = batchDeletionTarget.id;
+    batchDeleting = true;
+    elements.batchDeleteError.classList.add("d-none");
+    updateBatchDeleteModal();
+
+    try {
+      await deleteBatch(batchID);
+      batchDeletionTarget = null;
+      batchDeleting = false;
+      removeBatch(batchID);
+      batchDeleteModal.hide();
+    } catch (error) {
+      console.error("Failed to delete batch:", error);
+      batchDeleting = false;
+
+      if (error.status === 404) {
+        batchDeletionTarget = null;
+        removeBatch(batchID);
+        batchDeleteModal.hide();
+        return;
+      }
+
+      batchDeleteConflict = error.status === 409;
+      elements.batchDeleteError.textContent = batchDeleteConflict
+        ? "В партии появился перегон, поэтому удалить её нельзя."
+        : "Не удалось удалить партию. Проверьте связь и попробуйте ещё раз.";
+      elements.batchDeleteError.classList.remove("d-none");
+      updateBatchDeleteModal();
+    }
+  });
+
+  elements.batchDeleteModal.addEventListener("hide.bs.modal", (event) => {
+    if (batchDeleting) event.preventDefault();
+  });
+  elements.batchDeleteModal.addEventListener("hidden.bs.modal", () => {
+    const refreshHistory = batchDeleteConflict;
+    batchDeletionTarget = null;
+    batchDeleteConflict = false;
+    if (refreshHistory && state.active) {
+      reset();
+      render();
+      void loadFirstPage({ preserveExisting: false });
+    }
   });
 
   elements.addRunEvent.addEventListener("click", () => {
