@@ -15,6 +15,7 @@ func newRouter(
 	runRepository storage.RunRepository,
 	measurementRepository storage.MeasurementRepository,
 	runEventRepository storage.RunEventRepository,
+	backupService storage.BackupService,
 ) http.Handler {
 	mux := http.NewServeMux()
 
@@ -64,6 +65,10 @@ func newRouter(
 	})
 	mux.HandleFunc("PATCH /api/events/{eventID}", func(w http.ResponseWriter, r *http.Request) {
 		handleUpdateEvent(w, r, runEventRepository)
+	})
+
+	mux.HandleFunc("GET /api/backup", func(w http.ResponseWriter, r *http.Request) {
+		handleBackup(w, r, backupService)
 	})
 
 	mux.Handle("GET /metrics", promhttp.Handler())

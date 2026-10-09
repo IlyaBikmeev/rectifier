@@ -23,6 +23,7 @@ func Run(
 	runRepository storage.RunRepository,
 	measurementRepository storage.MeasurementRepository,
 	runEventRepository storage.RunEventRepository,
+	backupService storage.BackupService,
 ) {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, nil)))
 
@@ -70,6 +71,7 @@ func Run(
 		runRepository,
 		measurementRepository,
 		runEventRepository,
+		backupService,
 	)
 
 	server := &http.Server{

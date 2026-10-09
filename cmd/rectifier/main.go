@@ -70,8 +70,8 @@ func main() {
 	}
 	defer db.Close()
 
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
+	db.SetMaxOpenConns(2)
+	db.SetMaxIdleConns(2)
 	if err := db.PingContext(startupCtx); err != nil {
 		log.Fatalf("connect to SQLite database %q: %v", *dbPath, err)
 	}
@@ -85,7 +85,7 @@ func main() {
 	runRepository := storage.NewSQLiteRunRepository(db)
 	measurementRepository := storage.NewSQLiteMeasurementRepository(db)
 	runEventRepository := storage.NewRunEventRepository(db)
+	backupService := storage.NewSQLiteBackupService(db)
 
-	app.Run(version, sensorRegistry, sensorRepository, batchRepository, runRepository, measurementRepository, runEventRepository)
+	app.Run(version, sensorRegistry, sensorRepository, batchRepository, runRepository, measurementRepository, runEventRepository, backupService)
 }
-
